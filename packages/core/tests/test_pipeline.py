@@ -60,3 +60,17 @@ def test_resume_after_interrupted_stage(tmp_path: Path, synthetic_video: Path) -
 def test_run_refuses_foreign_folder(tmp_path: Path) -> None:
     (tmp_path / "meine_datei.txt").write_text("x", encoding="utf-8")
     assert main(["run", "video.mp4", "--out", str(tmp_path)]) == 1
+
+
+def test_missing_backend_fails_before_any_stage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fehlt jedes Trainings-Backend, bricht der Job sofort ab statt erst nach COLMAP."""
+    monkeypatch.setattr("splatforge.stages.train.torch_available", lambda: False)
+    monkeypatch.setattr("splatforge.adapters.brush.BrushAdapter.available", lambda self: False)
+    video = tmp_path / "video.mp4"
+    video.write_bytes(b"")
+    job = tmp_path / "job"
+    assert main(["run", str(video), "--out", str(job), "--json"]) == 1
+    events = _events(job)
+    assert events[-1]["type"] == "job_failed"
+    assert "PyTorch" in str(events[-1]["hint"])
+    assert not (job / "01_analyze").exists()

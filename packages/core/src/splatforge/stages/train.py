@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from ..config import TrainBackend
-from ..errors import SplatForgeError, ToolMissingError
+from ..errors import INSTALL_TORCH_HINT, SplatForgeError, ToolMissingError
 from ..events import EventType, ProgressEvent
 from .base import Stage, StageContext, write_json
 from .sfm import DATASET_DIR, SfmStage
@@ -39,6 +39,15 @@ class TrainStage(Stage):
         # Checkpoints bleiben erhalten, damit das Training dort fortgesetzt werden kann.
         return None
 
+    def preflight(self, ctx: StageContext) -> None:
+        wanted = ctx.config.train.backend
+        if wanted == TrainBackend.BRUSH:
+            ctx.tools.brush.check()
+        elif wanted == TrainBackend.CPU and not torch_available():
+            raise ToolMissingError("Für das CPU-Training fehlt PyTorch.", INSTALL_TORCH_HINT)
+        elif wanted == TrainBackend.AUTO and not ctx.tools.brush.available() and not torch_available():
+            raise ToolMissingError("Es ist kein Trainings-Backend verfügbar.", INSTALL_TORCH_HINT)
+
     def choose_backend(self, ctx: StageContext) -> TrainBackend:
         wanted = ctx.config.train.backend
         if wanted != TrainBackend.AUTO:
@@ -57,7 +66,7 @@ class TrainStage(Stage):
             return TrainBackend.CPU
         raise ToolMissingError(
             "Es ist kein Trainings-Backend verfügbar.",
-            "Brush installieren oder SplatForge mit dem Zusatz 'cpu-train' installieren.",
+            INSTALL_TORCH_HINT,
         )
 
     def run(self, ctx: StageContext) -> dict[str, Any]:

@@ -26,7 +26,7 @@ import numpy as np
 
 from ..adapters.base import CancelToken
 from ..config import TrainSettings
-from ..errors import ToolMissingError
+from ..errors import INSTALL_TORCH_HINT, ToolMissingError
 from ..imageio import read_image
 from ..ply import SH_C0, GaussianCloud, write_ply
 
@@ -62,7 +62,7 @@ def require_torch() -> None:
     if torch is None:
         raise ToolMissingError(
             "Für das CPU-Backend fehlt PyTorch.",
-            "SplatForge mit dem Zusatz 'cpu-train' installieren (pip install 'splatforge[cpu-train]').",
+            INSTALL_TORCH_HINT,
         )
 
 

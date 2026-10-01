@@ -63,6 +63,11 @@ class Stage(ABC):
         """Ob die Stufe für diesen Job überhaupt läuft (z. B. 360°-Aufbereitung nur bei 360°)."""
         return True
 
+    def preflight(self, ctx: StageContext) -> None:
+        """Prüft vor dem Start des Jobs, ob alles Nötige vorhanden ist, damit ein fehlendes Programm
+        nicht erst nach Stunden auffällt. Wirft einen SplatForgeError mit Massnahme."""
+        return None
+
     def is_done(self, ctx: StageContext) -> bool:
         return ctx.job.is_done(self.dirname)
 

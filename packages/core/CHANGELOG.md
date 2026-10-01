@@ -2,6 +2,13 @@
 
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionen nach [SemVer](https://semver.org/lang/de/).
 
+## [0.1.1] – 2026-10-01
+
+### Geändert
+- Fehlt jedes Trainings-Backend (weder Brush noch PyTorch), bricht der Job jetzt sofort beim Start ab
+  statt erst nach der COLMAP-Stufe. Neue Methode `Stage.preflight` für solche Vorabprüfungen.
+- Die Fehlermeldung nennt den genauen Befehl zur Installation von PyTorch (CPU-Variante).
+
 ## [0.1.0] – 2026-10-01
 
 Erste Version (Meilenstein 1: Core-Grundgerüst).

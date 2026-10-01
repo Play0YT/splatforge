@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+INSTALL_TORCH_HINT = (
+    "Brush installieren (schnell, mit Grafikkarte) oder PyTorch für das CPU-Training installieren: "
+    "uv pip install torch --index-url https://download.pytorch.org/whl/cpu"
+)
+
 
 class SplatForgeError(Exception):
     """Ein erwarteter Fehler, den der Nutzer selbst beheben kann.

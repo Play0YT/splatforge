@@ -74,6 +74,9 @@ class Pipeline:
         events.emit(ProgressEvent(type=EventType.JOB_STARTED, message=f"Job in {ctx.job.root}", percent=0))
         done_weight = 0.0
         try:
+            for stage in active:
+                if not stage.is_done(ctx):
+                    stage.preflight(ctx)
             for index, stage in enumerate(active):
                 events.stage, events.stage_index, events.stage_count = stage.name, index, len(active)
                 events.stage_weight_done = done_weight / total_weight
