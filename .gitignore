@@ -23,3 +23,17 @@ models/
 # Umgebung
 .env
 .DS_Store
+
+# Alte Dateiversionen (nur lokal, von keinem Build-Prozess verwendet)
+.backup/
+
+# Planungsdokumente (nur lokal)
+SPEC.md
+CLAUDE.md
+docs/plan-milestone-*.md
+
+# Testdaten und Videos (nur lokal bzw. per Skript)
+tests/data/
+*.mp4
+*.mov
+*.insv

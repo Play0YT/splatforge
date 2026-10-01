@@ -1,0 +1,516 @@
+{
+  "$defs": {
+    "CameraType": {
+      "enum": [
+        "auto",
+        "perspective",
+        "equirectangular",
+        "dual_fisheye"
+      ],
+      "title": "CameraType",
+      "type": "string"
+    },
+    "ExportSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "write_spz": {
+          "default": false,
+          "description": "Ab Meilenstein 7",
+          "title": "Write Spz",
+          "type": "boolean"
+        }
+      },
+      "title": "ExportSettings",
+      "type": "object"
+    },
+    "ExtractSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_factor": {
+          "default": 3.0,
+          "description": "So viele Kandidaten pro Ziel-Frame extrahieren",
+          "minimum": 1.0,
+          "title": "Candidate Factor",
+          "type": "number"
+        },
+        "jpeg_quality": {
+          "default": 2,
+          "description": "FFmpeg -q:v (1 = beste Qualität)",
+          "maximum": 31,
+          "minimum": 1,
+          "title": "Jpeg Quality",
+          "type": "integer"
+        },
+        "tonemap_hdr": {
+          "default": true,
+          "title": "Tonemap Hdr",
+          "type": "boolean"
+        }
+      },
+      "title": "ExtractSettings",
+      "type": "object"
+    },
+    "Mapper": {
+      "enum": [
+        "auto",
+        "global",
+        "incremental"
+      ],
+      "title": "Mapper",
+      "type": "string"
+    },
+    "Preset": {
+      "enum": [
+        "preview",
+        "standard",
+        "high"
+      ],
+      "title": "Preset",
+      "type": "string"
+    },
+    "ResourceSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "num_threads": {
+          "default": 0,
+          "description": "0 = alle Kerne",
+          "minimum": 0,
+          "title": "Num Threads",
+          "type": "integer"
+        },
+        "min_free_disk_mb": {
+          "default": 2048,
+          "minimum": 0,
+          "title": "Min Free Disk Mb",
+          "type": "integer"
+        }
+      },
+      "title": "ResourceSettings",
+      "type": "object"
+    },
+    "SelectSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "analysis_edge": {
+          "default": 640,
+          "description": "Bildkante für Schärfe- und Flussanalyse",
+          "exclusiveMinimum": 0,
+          "title": "Analysis Edge",
+          "type": "integer"
+        },
+        "blur_relative_threshold": {
+          "default": 0.35,
+          "description": "Frame gilt als unscharf unter diesem Anteil des Medians",
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Blur Relative Threshold",
+          "type": "number"
+        },
+        "min_total_motion": {
+          "default": 0.05,
+          "description": "Mindest-Gesamtbewegung (Anteil der Bilddiagonale)",
+          "minimum": 0,
+          "title": "Min Total Motion",
+          "type": "number"
+        },
+        "max_flow_features": {
+          "default": 400,
+          "exclusiveMinimum": 0,
+          "title": "Max Flow Features",
+          "type": "integer"
+        },
+        "min_selected_frames": {
+          "default": 20,
+          "exclusiveMinimum": 1,
+          "title": "Min Selected Frames",
+          "type": "integer"
+        }
+      },
+      "title": "SelectSettings",
+      "type": "object"
+    },
+    "SfmSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "mapper": {
+          "$ref": "#/$defs/Mapper",
+          "default": "auto"
+        },
+        "camera_model": {
+          "default": "OPENCV",
+          "title": "Camera Model",
+          "type": "string"
+        },
+        "single_camera": {
+          "default": true,
+          "title": "Single Camera",
+          "type": "boolean"
+        },
+        "sequential_overlap": {
+          "default": 10,
+          "exclusiveMinimum": 0,
+          "title": "Sequential Overlap",
+          "type": "integer"
+        },
+        "vocab_tree_path": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Vocab-Tree für Loop-Detection; ohne Datei ist sie aus",
+          "title": "Vocab Tree Path"
+        },
+        "loop_detection_period": {
+          "default": 10,
+          "exclusiveMinimum": 0,
+          "title": "Loop Detection Period",
+          "type": "integer"
+        },
+        "min_registered_ratio": {
+          "default": 0.6,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Min Registered Ratio",
+          "type": "number"
+        },
+        "low_texture_features": {
+          "default": 300,
+          "description": "Unter so vielen Merkmalen pro Bild: zu wenig Textur",
+          "exclusiveMinimum": 0,
+          "title": "Low Texture Features",
+          "type": "integer"
+        },
+        "weak_pair_inliers": {
+          "default": 30,
+          "description": "Unter so vielen Inliern zwischen Nachbarbildern: zu wenig Überlappung",
+          "exclusiveMinimum": 0,
+          "title": "Weak Pair Inliers",
+          "type": "integer"
+        }
+      },
+      "title": "SfmSettings",
+      "type": "object"
+    },
+    "ToolSettings": {
+      "additionalProperties": false,
+      "description": "Pfade zu externen Programmen. Leer bedeutet: im Suchpfad (PATH) suchen.",
+      "properties": {
+        "ffmpeg": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ffmpeg"
+        },
+        "ffprobe": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ffprobe"
+        },
+        "brush": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Brush"
+        },
+        "probe_timeout_s": {
+          "default": 60.0,
+          "exclusiveMinimum": 0,
+          "title": "Probe Timeout S",
+          "type": "number"
+        }
+      },
+      "title": "ToolSettings",
+      "type": "object"
+    },
+    "TrainBackend": {
+      "enum": [
+        "auto",
+        "brush",
+        "cpu"
+      ],
+      "title": "TrainBackend",
+      "type": "string"
+    },
+    "TrainSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "$ref": "#/$defs/TrainBackend",
+          "default": "auto"
+        },
+        "checkpoint_every": {
+          "default": 2000,
+          "exclusiveMinimum": 0,
+          "title": "Checkpoint Every",
+          "type": "integer"
+        },
+        "sh_degree": {
+          "default": 3,
+          "maximum": 3,
+          "minimum": 0,
+          "title": "Sh Degree",
+          "type": "integer"
+        },
+        "eval_split_every": {
+          "default": 8,
+          "description": "Jedes n-te Bild zur Qualitätsmessung, 0 = aus",
+          "minimum": 0,
+          "title": "Eval Split Every",
+          "type": "integer"
+        },
+        "cpu_max_image_edge": {
+          "default": 800,
+          "exclusiveMinimum": 0,
+          "title": "Cpu Max Image Edge",
+          "type": "integer"
+        },
+        "cpu_max_gaussians": {
+          "default": 300000,
+          "exclusiveMinimum": 0,
+          "title": "Cpu Max Gaussians",
+          "type": "integer"
+        },
+        "cpu_tile_size": {
+          "default": 8,
+          "exclusiveMinimum": 0,
+          "title": "Cpu Tile Size",
+          "type": "integer"
+        },
+        "cpu_densify_from": {
+          "default": 500,
+          "minimum": 0,
+          "title": "Cpu Densify From",
+          "type": "integer"
+        },
+        "cpu_densify_until_fraction": {
+          "default": 0.5,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Cpu Densify Until Fraction",
+          "type": "number"
+        },
+        "cpu_densify_every": {
+          "default": 100,
+          "exclusiveMinimum": 0,
+          "title": "Cpu Densify Every",
+          "type": "integer"
+        },
+        "cpu_densify_grad_threshold": {
+          "default": 0.0002,
+          "exclusiveMinimum": 0,
+          "title": "Cpu Densify Grad Threshold",
+          "type": "number"
+        },
+        "cpu_opacity_reset_every": {
+          "default": 3000,
+          "exclusiveMinimum": 0,
+          "title": "Cpu Opacity Reset Every",
+          "type": "integer"
+        },
+        "cpu_prune_opacity": {
+          "default": 0.005,
+          "exclusiveMinimum": 0,
+          "title": "Cpu Prune Opacity",
+          "type": "number"
+        },
+        "cpu_ssim_weight": {
+          "default": 0.2,
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Cpu Ssim Weight",
+          "type": "number"
+        },
+        "cpu_log_every": {
+          "default": 50,
+          "exclusiveMinimum": 0,
+          "title": "Cpu Log Every",
+          "type": "integer"
+        }
+      },
+      "title": "TrainSettings",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Vollständige Beschreibung eines Jobs. Wird als job.json im Job-Ordner gespeichert.",
+  "properties": {
+    "schema_version": {
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "inputs": {
+      "description": "Videodateien oder ein Bildordner",
+      "items": {
+        "format": "path",
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Inputs",
+      "type": "array"
+    },
+    "preset": {
+      "$ref": "#/$defs/Preset",
+      "default": "standard"
+    },
+    "frames": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Überschreibt das Preset",
+      "title": "Frames"
+    },
+    "max_image_edge": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Überschreibt das Preset",
+      "title": "Max Image Edge"
+    },
+    "iterations": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Überschreibt das Preset",
+      "title": "Iterations"
+    },
+    "camera_type": {
+      "$ref": "#/$defs/CameraType",
+      "default": "auto"
+    },
+    "masking": {
+      "default": false,
+      "description": "Personenmaskierung (ab Meilenstein 2)",
+      "title": "Masking",
+      "type": "boolean"
+    },
+    "tools": {
+      "$ref": "#/$defs/ToolSettings",
+      "default": {
+        "ffmpeg": null,
+        "ffprobe": null,
+        "brush": null,
+        "probe_timeout_s": 60.0
+      }
+    },
+    "extract": {
+      "$ref": "#/$defs/ExtractSettings",
+      "default": {
+        "candidate_factor": 3.0,
+        "jpeg_quality": 2,
+        "tonemap_hdr": true
+      }
+    },
+    "select": {
+      "$ref": "#/$defs/SelectSettings",
+      "default": {
+        "analysis_edge": 640,
+        "blur_relative_threshold": 0.35,
+        "min_total_motion": 0.05,
+        "max_flow_features": 400,
+        "min_selected_frames": 20
+      }
+    },
+    "sfm": {
+      "$ref": "#/$defs/SfmSettings",
+      "default": {
+        "mapper": "auto",
+        "camera_model": "OPENCV",
+        "single_camera": true,
+        "sequential_overlap": 10,
+        "vocab_tree_path": null,
+        "loop_detection_period": 10,
+        "min_registered_ratio": 0.6,
+        "low_texture_features": 300,
+        "weak_pair_inliers": 30
+      }
+    },
+    "train": {
+      "$ref": "#/$defs/TrainSettings",
+      "default": {
+        "backend": "auto",
+        "checkpoint_every": 2000,
+        "sh_degree": 3,
+        "eval_split_every": 8,
+        "cpu_max_image_edge": 800,
+        "cpu_max_gaussians": 300000,
+        "cpu_tile_size": 8,
+        "cpu_densify_from": 500,
+        "cpu_densify_until_fraction": 0.5,
+        "cpu_densify_every": 100,
+        "cpu_densify_grad_threshold": 0.0002,
+        "cpu_opacity_reset_every": 3000,
+        "cpu_prune_opacity": 0.005,
+        "cpu_ssim_weight": 0.2,
+        "cpu_log_every": 50
+      }
+    },
+    "export": {
+      "$ref": "#/$defs/ExportSettings",
+      "default": {
+        "write_spz": false
+      }
+    },
+    "resources": {
+      "$ref": "#/$defs/ResourceSettings",
+      "default": {
+        "num_threads": 0,
+        "min_free_disk_mb": 2048
+      }
+    }
+  },
+  "required": [
+    "inputs"
+  ],
+  "title": "JobConfig",
+  "type": "object"
+}

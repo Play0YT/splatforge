@@ -1,0 +1,51 @@
+name: Core
+
+on:
+  push:
+    branches: [main]
+    paths: ["packages/core/**", "packages/job-schema/**", "pyproject.toml", "uv.lock", ".github/workflows/core.yml"]
+  pull_request:
+    paths: ["packages/core/**", "packages/job-schema/**", "pyproject.toml", "uv.lock", ".github/workflows/core.yml"]
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.11"
+      - run: uv sync --all-packages --locked
+      - run: uv run ruff check packages/core
+      - run: uv run ruff format --check packages/core
+      - run: uv run mypy packages/core/src
+
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, macos-14, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.11"
+      - name: FFmpeg installieren (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: FFmpeg installieren (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+      - name: FFmpeg installieren (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y --no-progress
+      - run: uv sync --all-packages --locked
+      # Für das CPU-Backend genügt das kleine CPU-Paket von PyTorch (ohne CUDA).
+      - run: uv pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Unit-Tests
+        working-directory: packages/core
+        run: uv run --no-sync pytest -m "not integration" -q
+      - name: Integrationstest (kompletter Durchlauf auf CPU)
+        working-directory: packages/core
+        run: uv run --no-sync pytest -m integration -q

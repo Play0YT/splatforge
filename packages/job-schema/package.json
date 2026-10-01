@@ -1,0 +1,11 @@
+{
+  "name": "@splatforge/job-schema",
+  "version": "0.1.0",
+  "private": true,
+  "description": "JSON-Schemas für SplatForge-Job-Konfiguration und Fortschritts-Events",
+  "files": ["schemas"],
+  "exports": {
+    "./job-config.schema.json": "./schemas/job-config.schema.json",
+    "./progress-event.schema.json": "./schemas/progress-event.schema.json"
+  }
+}
