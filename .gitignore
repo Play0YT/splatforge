@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+
+# Node / Frontend
+node_modules/
+
+# Tauri / Rust
+target/
+
+# Laufzeitdaten
+jobs/
+models/
+*.ckpt
+
+# Umgebung
+.env
+.DS_Store
