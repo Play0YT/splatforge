@@ -54,3 +54,24 @@ Visuell sehr ähnlich, das CPU-Ergebnis wirkt an einzelnen Stellen leicht besser
 geprüft): Brush verteilt Lernrate und Verdichtung auf die Gesamtzahl der Schritte und ist auf 30 000 Schritte
 ausgelegt; bei nur 1 000 Schritten wird kaum verdichtet. Das CPU-Backend skaliert sein Verdichtungsfenster
 mit der Schrittzahl. Nächste Messung: Vorschau-Stufe (7 000 Schritte) mit Brush.
+
+## 2026-10-02 – Core 0.1.3, Brush 0.3, Vorschau-Stufe (Rückmeldung des Projektinhabers)
+
+Gleicher Rechner (Intel HD Graphics 630) und gleiches Video, `--preset preview --backend brush`
+(120 Frames, max. 1 280 px, 7 000 Iterationen).
+
+| Stufe | Dauer |
+| --- | --- |
+| Training (Brush, 7 000 Iterationen) | 3 319 s ≈ 55 min |
+
+Ergebnis: deutlich schärfer als mit 1 000 Iterationen, kaum noch Floater. Eine durchs Bild laufende Person
+ist als halbtransparente Gestalt im Splat zu sehen (Fall für die Personenmaskierung, Meilenstein 2).
+
+## 2026-10-02 – Core 0.2.0, erste echte .insv-Datei (Rückmeldung des Projektinhabers)
+
+Datei aus dem Internet, umbenannt (`test_insv.insv`). Erkannt: Insta360 ONE RS (Firmware v1.6.29),
+eine Videospur 3072×3072 (H.264, 24 fps, 47 s), also ein Objektiv pro Datei. Metadaten-Trailer Version 3
+mit den Datensätzen 1, 2, 3, 4, 5, 9, 10, 11; `offset`, `offset_v2` und `offset_v3` gelesen, Gyrodaten
+vorhanden. Damit ist der Leser erstmals mit einer echten Datei bestätigt. Die Datei des zweiten Objektivs
+fehlte. Die exportierten Bilder zeigen ein Fisheye, das auf dem Kopf steht (in der Kalibrierung steht beim
+ersten Objektiv ein Winkel von rund 179°).
