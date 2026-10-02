@@ -2,6 +2,14 @@
 
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionen nach [SemVer](https://semver.org/lang/de/).
 
+## [0.2.2] – 2026-10-02
+
+### Geändert
+- Bei einer Datei pro Objektiv (`…_00_…`/`…_10_…`) werden fehlende Insta360-Metadaten aus der Partnerdatei
+  gelesen. Bei der Insta360 ONE RS stehen sie nur in der `_00_`-Datei.
+- Die Objektive haben eine feste Reihenfolge (`_00_` = Objektiv 1, `_10_` = Objektiv 2), egal welche der
+  beiden Dateien angegeben wird.
+
 ## [0.2.1] – 2026-10-02
 
 ### Hinzugefügt

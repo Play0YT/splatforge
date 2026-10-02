@@ -89,7 +89,8 @@ def lens_sources(path: Path, layout: LensLayout, partner: Path | None) -> list[d
     sources = [{"path": str(path), "stream": 0, "crop": None}]
     if partner is not None:
         sources.append({"path": str(partner), "stream": 0, "crop": None})
-    return sources
+    # Feste Reihenfolge, egal welche Datei angegeben wurde: …_00_… ist Objektiv 1, …_10_… Objektiv 2
+    return sorted(sources, key=lambda s: Path(s["path"]).name)
 
 
 def _rate(value: str | None) -> float:
@@ -241,6 +242,12 @@ class AnalyzeStage(Stage):
         insv_meta: dict[str, Any] | None = None
         if path.suffix.lower() == ".insv":
             meta = read_metadata(path)
+            meta_partner = partner_file(path) if meta is None else None
+            if meta_partner is not None:
+                # Bei einer Datei pro Objektiv stehen die Metadaten nur in einer der beiden (meist _00_)
+                meta = read_metadata(meta_partner)
+                if meta is not None:
+                    notes.append(f"Insta360-Metadaten aus der Partnerdatei {meta_partner.name} gelesen")
             if meta is not None:
                 insv_meta = meta.to_dict()
                 if meta.camera_type:

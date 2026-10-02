@@ -11,7 +11,7 @@ Geplant sind zwei eigenständige Anwendungen mit gemeinsamem Verarbeitungskern:
 
 | Teil | Version | Stand |
 | --- | --- | --- |
-| [`packages/core`](packages/core) | 0.2.1 | Kommandozeile: Video → Kamerapositionen → Splat (`.ply`) |
+| [`packages/core`](packages/core) | 0.2.2 | Kommandozeile: Video → Kamerapositionen → Splat (`.ply`) |
 | [`packages/job-schema`](packages/job-schema) | 0.1.0 | JSON-Schemas für Job-Konfiguration und Events |
 | `packages/ui-components`, `apps/*` | – | noch nicht begonnen |
 

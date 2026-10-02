@@ -76,3 +76,7 @@ vorhanden. Damit ist der Leser erstmals mit einer echten Datei bestätigt. Die D
 fehlte. Eine zweite Datei derselben Aufnahme (`LRV_20220625_140410_11_008.insv`) ist die Vorschau der
 Kamera: beide Objektive nebeneinander in einer Spur, nur 384×384 pro Objektiv. Die exportierten Bilder zeigen ein Fisheye, das auf dem Kopf steht (in der Kalibrierung steht beim
 ersten Objektiv ein Winkel von rund 179°).
+
+Dritter Test mit dem Originalpaar `VID_20220625_140410_00_008.insv` und `…_10_008.insv` (je 3072×3072,
+H.264, 47 s): Paar korrekt erkannt. Die `_10_`-Datei enthält keinen Insta360-Metadatenblock; Metadaten und
+Kalibrierung stehen nur in der `_00_`-Datei (ab 0.2.2 werden sie von dort übernommen).

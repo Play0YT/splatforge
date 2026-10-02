@@ -165,3 +165,14 @@ def test_analyze_warns_about_preview_file(tmp_path: Path) -> None:
     assert info.lens_layout == "side_by_side"
     assert any("Vorschaudatei (LRV)" in n for n in info.notes)
     assert any("nicht im selben Ordner" in n for n in info.notes)
+
+
+@needs_ffmpeg
+def test_split_files_metadata_from_partner_and_fixed_order(tmp_path: Path) -> None:
+    """Wie bei der ONE RS: Metadaten nur in _00_, angegeben wird die _10_-Datei."""
+    a = make_insv(tmp_path / "VID_20220625_140410_00_008.insv", layout="single")
+    b = make_insv(tmp_path / "VID_20220625_140410_10_008.insv", layout="single", trailer=b"")
+    info = inspect_input(b)
+    assert info.insv is not None and info.insv["camera_type"] == "Insta360 X4"
+    assert any("Partnerdatei" in n for n in info.notes)
+    assert [Path(lens["path"]) for lens in info.lenses] == [a, b]
