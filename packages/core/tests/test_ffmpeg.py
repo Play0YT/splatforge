@@ -25,18 +25,12 @@ def test_passthrough_option_depends_on_version(
 
 
 @needs_ffmpeg
-@pytest.mark.parametrize("pretend_version", [(4, 4), None])
-def test_extract_with_old_and_new_option(
-    tmp_path: Path,
-    synthetic_video: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    pretend_version: tuple[int, ...] | None,
-) -> None:
-    """Auch die Option für FFmpeg 4.4 (-vsync) muss von der installierten Version akzeptiert werden."""
-    adapter = FfmpegAdapter()
-    if pretend_version is not None:
-        monkeypatch.setattr(adapter, "version", lambda: pretend_version)
-    adapter.extract_frames(
+def test_extract_with_installed_version(tmp_path: Path, synthetic_video: Path) -> None:
+    """Die nach Version gewählte Option muss von der installierten FFmpeg-Version akzeptiert werden.
+
+    Ältere Versionen kennen nur -vsync, neuere nur -fps_mode; deshalb wird hier nichts vorgetäuscht.
+    """
+    FfmpegAdapter().extract_frames(
         source=synthetic_video,
         out_pattern=tmp_path / "%04d.jpg",
         fps=2.0,
