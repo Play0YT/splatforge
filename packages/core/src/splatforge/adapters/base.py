@@ -61,6 +61,8 @@ class BinaryAdapter:
 
     name: str = ""
     executable: str = ""
+    #: Weitere Dateinamen, unter denen das Programm im Suchpfad liegen kann
+    alt_executables: tuple[str, ...] = ()
     min_version: Version = (0,)
     version_args: Sequence[str] = ("-version",)
     install_hint: str = ""
@@ -89,9 +91,11 @@ class BinaryAdapter:
                 return self._configured_path
             raise ToolMissingError(
                 f"{self.name} wurde unter {self._configured_path} nicht gefunden.",
-                "Den Pfad in den Einstellungen korrigieren oder leer lassen.",
+                "Den Pfad korrigieren. Er muss auf die Programmdatei selbst zeigen, nicht auf den Ordner.",
             )
-        found = shutil.which(self.executable)
+        found = next(
+            (p for name in (self.executable, *self.alt_executables) if (p := shutil.which(name))), None
+        )
         if found is None:
             raise ToolMissingError(
                 f"{self.name} ist nicht installiert oder nicht im Suchpfad.", self.install_hint

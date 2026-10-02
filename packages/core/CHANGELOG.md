@@ -2,6 +2,24 @@
 
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionen nach [SemVer](https://semver.org/lang/de/).
 
+## [0.1.2] – 2026-10-02
+
+### Behoben
+- Brush 0.3 (aktuelle veröffentlichte Version) wurde mit einer falschen Option aufgerufen
+  (`--total-train-iters` statt `--total-steps`). Die passende Option wird jetzt aus `brush --help` gelesen.
+- Brush wird jetzt auch unter dem Dateinamen `brush_app` bzw. `brush_app.exe` (Brush 0.3) gefunden.
+- `splatforge hardware` meldete Windows 11 als „Windows 10“.
+- `splatforge hardware` meldete keine NVIDIA-Grafikkarte, sobald die CPU-Variante von PyTorch installiert war.
+
+### Hinzugefügt
+- Option `--brush <Pfad>` für `run`, `resume` und `hardware`. Bei `resume` gilt sie nur für diesen Lauf.
+- `splatforge hardware` listet alle Grafikkarten (`gpus`), die Brush-Version und gegebenenfalls, warum Brush
+  nicht nutzbar ist (`brush_problem`).
+- Brush-Ausgaben von Grafik-Bibliotheken werden auf Warnungen beschränkt, damit das Log lesbar bleibt.
+
+### Geändert
+- In der Ausgabe von `splatforge hardware` heisst das Feld `cuda` jetzt `nvidia_gpu`.
+
 ## [0.1.1] – 2026-10-01
 
 ### Geändert

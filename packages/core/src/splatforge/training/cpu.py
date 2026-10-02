@@ -35,7 +35,7 @@ try:
     import torch.nn.functional as F  # noqa: N812
     from torch.utils.checkpoint import checkpoint
 except ImportError:  # pragma: no cover - abhängig von der Installation
-    torch = None  # type: ignore[assignment]
+    torch = None  # type: ignore[assignment,unused-ignore]
 
 # Feste Konstanten der 3DGS-Referenzimplementierung (keine Stellschrauben für Nutzer)
 _LR_MEANS_START = 1.6e-4

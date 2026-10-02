@@ -11,7 +11,7 @@ Geplant sind zwei eigenständige Anwendungen mit gemeinsamem Verarbeitungskern:
 
 | Teil | Version | Stand |
 | --- | --- | --- |
-| [`packages/core`](packages/core) | 0.1.1 | Kommandozeile: Video → Kamerapositionen → Splat (`.ply`) |
+| [`packages/core`](packages/core) | 0.1.2 | Kommandozeile: Video → Kamerapositionen → Splat (`.ply`) |
 | [`packages/job-schema`](packages/job-schema) | 0.1.0 | JSON-Schemas für Job-Konfiguration und Events |
 | `packages/ui-components`, `apps/*` | – | noch nicht begonnen |
 
@@ -86,9 +86,11 @@ uv run splatforge run ~/Videos/mein_video.mp4 --preset preview --out ~/splatforg
 
 - `splatforge hardware` zeigt, was erkannt wurde. Steht bei `brush` `false` und bei `torch` `true`, wird auf
   der CPU trainiert. Das funktioniert überall, ist aber langsam.
-- Die Vorschau-Stufe trainiert 7 000 Iterationen, auf der CPU kann das mehrere Stunden dauern.
-  Für einen ersten Test reicht deutlich weniger:
-  `uv run splatforge run <video> --frames 60 --iterations 1000 --out <ordner>`
+- **Das CPU-Training ist sehr langsam.** Gemessen auf einem Windows-11-PC mit 4 CPU-Threads: 1 000 Iterationen
+  mit einem Stock-Video dauerten 3,7 Stunden (gut 13 Sekunden pro Iteration). Die Vorschau-Stufe mit
+  7 000 Iterationen bräuchte dort über einen Tag. Für einen ersten Test ohne Grafikkarte also wenig
+  Iterationen wählen: `uv run splatforge run <video> --frames 60 --iterations 1000 --out <ordner>`.
+  Mit Grafikkarte über Brush (siehe unten) geht es deutlich schneller.
 - Mit **Strg+C** brichst du ab. Mit `uv run splatforge resume <ordner>` geht es später dort weiter.
 - Das Ergebnis liegt in `<ordner>/08_export/splat.ply`, ein Bericht in `<ordner>/08_export/report.json`.
   Ansehen kannst du die `.ply`-Datei z. B. per Drag-and-drop im Browser in
@@ -99,9 +101,33 @@ uv run splatforge run ~/Videos/mein_video.mp4 --preset preview --out ~/splatforg
 **Gutes Testvideo:** 20 bis 60 Sekunden, langsam um einen Gegenstand mit viel Struktur herumgehen
 (Pflanze, Schuh, Sofa), nicht nur schwenken. Mehr Tipps in [`docs/capture-guide.md`](docs/capture-guide.md).
 
-**Schneller mit Grafikkarte:** [Brush](https://github.com/ArthurBrussee/brush/releases) herunterladen und die
-Datei `brush` (Windows: `brush.exe`) in einen Ordner im Suchpfad legen. `splatforge hardware` zeigt dann
-`"brush": true`.
+## Training mit Grafikkarte (Brush)
+
+[Brush](https://github.com/ArthurBrussee/brush) trainiert auf der Grafikkarte, auch auf AMD- und
+Intel-Grafik (über DirectX 12, Vulkan oder Metal). Es gehört nicht zu SplatForge und wird separat
+heruntergeladen. Unterstützt wird Brush 0.3 oder neuer.
+
+1. Auf https://github.com/ArthurBrussee/brush/releases bei der neuesten Version unter „Assets“ das Archiv
+   für dein System herunterladen:
+   - Windows: Name endet auf `x86_64-pc-windows-msvc.zip`
+   - Linux: Name endet auf `x86_64-unknown-linux-gnu.tar.xz`
+   - macOS (Apple Silicon): Name endet auf `aarch64-apple-darwin.tar.xz`
+2. Entpacken, z. B. nach `C:\Tools\brush` (Windows) oder `~/tools/brush` (Linux/macOS). Darin liegt die
+   Programmdatei, bei Brush 0.3 heisst sie `brush_app.exe` (Windows) bzw. `brush_app`.
+   Unter Linux/macOS einmal `chmod +x ~/tools/brush/brush_app` ausführen.
+3. Prüfen, ob SplatForge Brush erkennt. Der Pfad muss auf die Datei zeigen, nicht auf den Ordner:
+   ```
+   uv run splatforge hardware --brush C:\Tools\brush\brush_app.exe
+   ```
+   Erwartet: `"brush": true` und eine `brush_version`. Sonst steht der Grund unter `brush_problem`.
+4. Job mit Brush starten:
+   ```
+   uv run splatforge run <video> --preset preview --backend brush --brush C:\Tools\brush\brush_app.exe --out <neuer-ordner>
+   ```
+
+Ohne `--backend brush` (also mit `auto`) nimmt SplatForge Brush, wenn es gefunden wird, und fällt sonst auf
+die CPU zurück. Liegt Brush im Suchpfad (`PATH`), kann `--brush` entfallen. Hat der Rechner mehrere
+Grafikkarten, nimmt Brush automatisch die leistungsstärkste.
 
 **Aktualisieren:** im Ordner `splatforge` die Befehle `git pull` und `uv sync --all-packages` ausführen und
 danach den `torch`-Befehl von oben wiederholen (`uv sync` entfernt PyTorch, weil es nicht fest eingetragen ist).

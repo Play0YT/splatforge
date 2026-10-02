@@ -38,21 +38,28 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--iterations", type=int, help="Trainings-Iterationen")
     run.add_argument("--backend", choices=[b.value for b in TrainBackend], help="Trainings-Backend")
     run.add_argument("--threads", type=int, help="Anzahl CPU-Threads (0 = alle)")
+    _brush_arg(run)
     _output_args(run)
 
     resume = sub.add_parser("resume", help="Unterbrochenen Job fortsetzen")
     resume.add_argument("job", type=Path, help="Job-Ordner")
+    _brush_arg(resume)
     _output_args(resume)
 
     analyze = sub.add_parser("analyze", help="Eingabe prüfen, ohne einen Job anzulegen")
     analyze.add_argument("input", type=Path)
 
-    sub.add_parser("hardware", help="Erkannte Hardware und Backends anzeigen")
+    hardware = sub.add_parser("hardware", help="Erkannte Hardware und Backends anzeigen")
+    _brush_arg(hardware)
 
     schema = sub.add_parser("schema", help="JSON-Schemas für Job-Konfiguration und Events schreiben")
     schema.add_argument("--out", type=Path, required=True)
     schema.add_argument("--force", action="store_true", help="Bestehende, abweichende Dateien ersetzen")
     return parser
+
+
+def _brush_arg(p: argparse.ArgumentParser) -> None:
+    p.add_argument("--brush", type=Path, help="Pfad zur Brush-Programmdatei (sonst Suche im Suchpfad)")
 
 
 def _output_args(p: argparse.ArgumentParser) -> None:
@@ -74,6 +81,8 @@ def _load_config(args: argparse.Namespace) -> JobConfig:
             data[key] = value
     if args.backend:
         data.setdefault("train", {})["backend"] = args.backend
+    if args.brush is not None:
+        data.setdefault("tools", {})["brush"] = str(args.brush)
     if args.threads is not None:
         data.setdefault("resources", {})["num_threads"] = args.threads
     return JobConfig.model_validate(data)
@@ -125,13 +134,20 @@ def main(argv: list[str] | None = None) -> int:
             return _run_pipeline(job, job.load(), args.json)
         if args.command == "resume":
             job = JobDir(args.job)
-            return _run_pipeline(job, job.load(), args.json)
+            config = job.load()
+            if args.brush is not None:
+                # Gilt nur für diesen Lauf; job.json bleibt unverändert.
+                tools = config.tools.model_copy(update={"brush": args.brush})
+                config = config.model_copy(update={"tools": tools})
+            return _run_pipeline(job, config, args.json)
         if args.command == "analyze":
             return _analyze(args.input)
         if args.command == "hardware":
+            from .adapters import BrushAdapter
             from .hardware import detect
 
-            print(json.dumps(detect().to_dict(), indent=2, ensure_ascii=False))
+            info = detect(BrushAdapter(args.brush))
+            print(json.dumps(info.to_dict(), indent=2, ensure_ascii=False))
             return 0
         if args.command == "schema":
             return _write_schemas(args.out, args.force)

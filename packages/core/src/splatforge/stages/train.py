@@ -16,6 +16,7 @@ from .base import Stage, StageContext, write_json
 from .sfm import DATASET_DIR, SfmStage
 
 FINAL_PLY = "final.ply"
+BRUSH_LOG_FILTER = "info,wgpu=warn,wgpu_core=warn,wgpu_hal=warn,naga=warn,cubecl=warn,burn=warn"
 TRAIN_FILE = "train.json"
 _ITER = re.compile(r"iter\s+(\d+)", re.I)
 _EVAL = re.compile(r"PSNR\s+([\d.]+),\s*ssim\s+([\d.]+)", re.I)
@@ -148,7 +149,8 @@ class TrainStage(Stage):
                 ctx.events.log(line.strip())
 
         env = dict(os.environ)
-        env.setdefault("RUST_LOG", "info")
+        # Fortschritt kommt aus Brushs Info-Log; Grafik-Bibliotheken nur bei Warnungen
+        env.setdefault("RUST_LOG", BRUSH_LOG_FILTER)
         brush.stream(
             [
                 *brush_args(dataset, exports, iterations, ctx),
@@ -180,7 +182,7 @@ def brush_args(dataset: Path, exports: Path, iterations: int, ctx: StageContext)
     train = ctx.config.train
     args: list[str | Path] = [
         dataset,
-        "--total-train-iters", str(iterations),
+        ctx.tools.brush.steps_flag(), str(iterations),
         "--export-every", str(train.checkpoint_every),
         "--export-path", exports,
         "--export-name", "export_{iter}.ply",
