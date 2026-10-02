@@ -16,7 +16,11 @@ from .base import Stage, StageContext, write_json
 from .sfm import DATASET_DIR, SfmStage
 
 FINAL_PLY = "final.ply"
-BRUSH_LOG_FILTER = "info,wgpu=warn,wgpu_core=warn,wgpu_hal=warn,naga=warn,cubecl=warn,burn=warn"
+# Nur Brushs eigene Fortschrittsmeldungen; alles andere (z. B. die sehr langen Debug-Zeilen von
+# brush_dataset beim Laden jedes Bildes) nur bei Warnungen und Fehlern.
+BRUSH_LOG_FILTER = "warn,brush_cli=info,brush_process=info"
+# Längere Zeilen werden im Log gekürzt
+MAX_LOG_LINE = 400
 TRAIN_FILE = "train.json"
 _ITER = re.compile(r"iter\s+(\d+)", re.I)
 _EVAL = re.compile(r"PSNR\s+([\d.]+),\s*ssim\s+([\d.]+)", re.I)
@@ -145,11 +149,11 @@ class TrainStage(Stage):
                 elapsed = time.monotonic() - started
                 eta = elapsed / step * (iterations - step) if step else None
                 ctx.events.progress(step / iterations, eta, message=f"Iteration {step}/{iterations}")
-            if line.strip():
-                ctx.events.log(line.strip())
+            text = line.strip()
+            if text:
+                ctx.events.log(text if len(text) <= MAX_LOG_LINE else text[:MAX_LOG_LINE] + " …")
 
         env = dict(os.environ)
-        # Fortschritt kommt aus Brushs Info-Log; Grafik-Bibliotheken nur bei Warnungen
         env.setdefault("RUST_LOG", BRUSH_LOG_FILTER)
         brush.stream(
             [

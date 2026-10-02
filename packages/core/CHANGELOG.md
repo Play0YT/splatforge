@@ -2,6 +2,14 @@
 
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionen nach [SemVer](https://semver.org/lang/de/).
 
+## [0.1.3] – 2026-10-02
+
+### Behoben
+- Brush füllte die Ausgabe mit sehr langen Debug-Zeilen (eine pro geladenem Bild, mit der ganzen
+  Dateiliste). SplatForge lässt von Brush jetzt nur noch die eigenen Fortschrittsmeldungen sowie Warnungen
+  und Fehler durch und kürzt überlange Zeilen. Eine selbst gesetzte Umgebungsvariable `RUST_LOG` hat
+  weiterhin Vorrang.
+
 ## [0.1.2] – 2026-10-02
 
 ### Behoben

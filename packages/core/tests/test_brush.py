@@ -33,6 +33,7 @@ if "--help" in args:
 if "{fail}":
     print("Error: No suitable adapter found")
     sys.exit(1)
+print("INFO brush_dataset::scene load_scene_img; " + "x" * 5000)
 opts = dict(zip(args[1::2], args[2::2]))
 steps = int(opts["{steps_flag}"])
 out = Path(opts["--export-path"])
@@ -149,3 +150,15 @@ def test_brush_app_name_found_in_path(tmp_path: Path, monkeypatch: pytest.Monkey
     script.rename(renamed)
     monkeypatch.setenv("PATH", str(renamed.parent))
     assert BrushAdapter().path == renamed
+
+
+@posix_only
+def test_long_brush_lines_are_shortened(tmp_path: Path) -> None:
+    from splatforge.stages.train import MAX_LOG_LINE
+
+    ctx = _ctx(tmp_path, _fake_brush(tmp_path))
+    logged: list[str] = []
+    ctx.events.log = logged.append  # type: ignore[method-assign]
+    TrainStage().run(ctx)
+    assert logged
+    assert max(len(line) for line in logged) <= MAX_LOG_LINE + 2
