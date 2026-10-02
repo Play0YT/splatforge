@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
+import importlib.util
+from typing import TYPE_CHECKING
+
 import pytest
 
-torch = pytest.importorskip("torch")
+# PyTorch erst in den Tests laden, nicht beim Einsammeln: Sonst landet es auch im Prozess der
+# Integrationstests, und unter macOS verträgt es sich dort nicht mit pycolmap.
+if importlib.util.find_spec("torch") is None:
+    pytest.skip("PyTorch nicht installiert", allow_module_level=True)
 
-from splatforge.training.cpu import View, _quat_to_rot, render  # noqa: E402
+if TYPE_CHECKING:
+    from splatforge.training.cpu import View
 
 
 def _view(width: int = 40, height: int = 30) -> View:
+    import torch
+
+    from splatforge.training.cpu import View
+
     pose = torch.zeros(3, 4)
     pose[:, :3] = torch.eye(3)
     return View(
@@ -18,6 +29,8 @@ def _view(width: int = 40, height: int = 30) -> View:
 
 
 def _params(n: int = 25) -> dict[str, object]:
+    import torch
+
     gen = torch.Generator().manual_seed(3)
     means = torch.rand(n, 3, generator=gen) * torch.tensor([2.0, 1.5, 2.0]) - torch.tensor([1.0, 0.75, -2.0])
     quats = torch.randn(n, 4, generator=gen)
@@ -32,7 +45,10 @@ def _params(n: int = 25) -> dict[str, object]:
 
 def _reference(params: dict[str, object], view: View) -> object:
     """Naive Implementation: alle Gaussians, jeder Pixel, nach Tiefe sortiert."""
+    import torch
+
     from splatforge.ply import SH_C0
+    from splatforge.training.cpu import _quat_to_rot
 
     means, scales = params["means"].detach(), torch.exp(params["log_scales"].detach())  # type: ignore[attr-defined]
     rot = _quat_to_rot(params["quats"].detach())  # type: ignore[attr-defined]
@@ -63,6 +79,10 @@ def _reference(params: dict[str, object], view: View) -> object:
 
 
 def test_matches_naive_reference() -> None:
+    import torch
+
+    from splatforge.training.cpu import render
+
     view, params = _view(), _params()
     for tile in (4, 8, 16):
         with torch.no_grad():
@@ -72,6 +92,10 @@ def test_matches_naive_reference() -> None:
 
 
 def test_gradients_reach_all_parameters() -> None:
+    import torch
+
+    from splatforge.training.cpu import render
+
     view, params = _view(), _params()
     img, means2d, visible = render(params, view, 8, torch.zeros(3))
     img.sum().backward()
