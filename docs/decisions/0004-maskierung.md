@@ -24,3 +24,8 @@ Tiny-Modell braucht auf der CPU etwa 3 Sekunden pro Bild.
 übersieht, durchrutschen; der Sicherheitsrand, die Interpolation und die Kontrollbilder mildern das. Die
 Maskierung läuft als eigener Prozess, weil onnxruntime und pycolmap unter macOS nicht im selben Prozess
 liegen sollen. Für die Desktop-App (Meilenstein 5) werden die Modelle im Installer optional mitgeliefert.
+
+**Nachtrag 2026-10-02.** Die zweite Testmaschine hat eine AMD Radeon RX 6700, keine NVIDIA-Karte. Zurzeit
+steht also kein NVIDIA-Rechner zum Testen bereit; die Video-Verfolgung (PyTorch/CUDA) hat deshalb keine
+Eile. Für AMD-Karten bleibt es beim Bildmodell; eine Beschleunigung über DirectML (Windows) bzw. ROCm
+(Linux) gehört zum Feinschliff (Meilenstein 7).
