@@ -141,3 +141,27 @@ def test_analyze_cli_and_run_message(tmp_path: Path, capsys: pytest.CaptureFixtu
     assert main(["analyze", str(path)]) == 0
     data = json.loads(capsys.readouterr().out)
     assert data["inputs"][0]["lens_layout"] == "two_streams"
+
+
+def test_preview_file_and_originals(tmp_path: Path) -> None:
+    from splatforge.insv import is_preview_file, original_files
+
+    lrv = tmp_path / "LRV_20220625_140410_11_008.insv"
+    vid0 = tmp_path / "VID_20220625_140410_00_008.insv"
+    vid1 = tmp_path / "VID_20220625_140410_10_008.insv"
+    other = tmp_path / "VID_20220625_140410_00_009.insv"
+    for p in (lrv, vid0, vid1, other):
+        p.write_bytes(b"")
+    assert is_preview_file(lrv)
+    assert not is_preview_file(vid0)
+    assert original_files(lrv) == [vid0, vid1]
+    assert original_files(vid0) == []
+
+
+@needs_ffmpeg
+def test_analyze_warns_about_preview_file(tmp_path: Path) -> None:
+    lrv = make_insv(tmp_path / "LRV_20220625_140410_11_008.insv", layout="side_by_side")
+    info = inspect_input(lrv)
+    assert info.lens_layout == "side_by_side"
+    assert any("Vorschaudatei (LRV)" in n for n in info.notes)
+    assert any("nicht im selben Ordner" in n for n in info.notes)

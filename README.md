@@ -11,7 +11,7 @@ Geplant sind zwei eigenständige Anwendungen mit gemeinsamem Verarbeitungskern:
 
 | Teil | Version | Stand |
 | --- | --- | --- |
-| [`packages/core`](packages/core) | 0.2.0 | Kommandozeile: Video → Kamerapositionen → Splat (`.ply`) |
+| [`packages/core`](packages/core) | 0.2.1 | Kommandozeile: Video → Kamerapositionen → Splat (`.ply`) |
 | [`packages/job-schema`](packages/job-schema) | 0.1.0 | JSON-Schemas für Job-Konfiguration und Events |
 | `packages/ui-components`, `apps/*` | – | noch nicht begonnen |
 
@@ -113,7 +113,8 @@ uv run splatforge frames <datei>.insv --out <neuer-ordner> --count 20
 ```
 
 Danach liegen die Bilder in `<neuer-ordner>/objektiv_1` und `objektiv_2`. Nimmt die Kamera pro Objektiv eine
-eigene Datei auf (Namen mit `_00_` und `_10_`), müssen beide im selben Ordner liegen.
+eigene Datei auf (Namen mit `_00_` und `_10_`), müssen beide im selben Ordner liegen. Dateien, die mit
+`LRV_` beginnen, sind nur Vorschauen in niedriger Auflösung; für einen Splat die `VID_`-Dateien verwenden.
 
 ## Training mit Grafikkarte (Brush)
 

@@ -2,6 +2,13 @@
 
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionen nach [SemVer](https://semver.org/lang/de/).
 
+## [0.2.1] – 2026-10-02
+
+### Hinzugefügt
+- Vorschaudateien von Insta360 (`LRV_….insv`, niedrige Auflösung) werden erkannt. `splatforge analyze`
+  weist darauf hin, dass sie für einen Splat ungeeignet sind, und nennt die Originaldateien (`VID_…`),
+  falls sie im selben Ordner liegen.
+
 ## [0.2.0] – 2026-10-02
 
 ### Hinzugefügt

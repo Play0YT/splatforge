@@ -242,3 +242,25 @@ def partner_file(path: Path) -> Path | None:
     other = "10" if match["lens"] == "00" else "00"
     candidate = path.with_name(f"{match['prefix']}{other}{match['suffix']}")
     return candidate if candidate.is_file() else None
+
+
+# Insta360 legt neben den Originalen (VID_…) eine Vorschau in niedriger Auflösung an (LRV_…), z. B.
+# LRV_20220625_140410_11_008.insv zu VID_20220625_140410_00_008.insv und VID_20220625_140410_10_008.insv.
+_PREVIEW_NAME = re.compile(r"^LRV_(?P<stamp>\d{8}_\d{6})_\d{2}_(?P<number>\d+)\.insv$", re.IGNORECASE)
+
+
+def is_preview_file(path: Path) -> bool:
+    """Ob es sich um eine Vorschaudatei (LRV) in niedriger Auflösung handelt."""
+    return _PREVIEW_NAME.match(path.name) is not None
+
+
+def original_files(path: Path) -> list[Path]:
+    """Zu einer Vorschaudatei die Originaldateien (VID_…) im selben Ordner."""
+    match = _PREVIEW_NAME.match(path.name)
+    if match is None:
+        return []
+    original = re.compile(
+        rf"^VID_{match['stamp']}_\d{{2}}_{match['number']}\.insv$",
+        re.IGNORECASE,
+    )
+    return sorted(p for p in path.parent.iterdir() if original.match(p.name))

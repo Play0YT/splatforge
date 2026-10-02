@@ -62,7 +62,7 @@ Gleicher Rechner (Intel HD Graphics 630) und gleiches Video, `--preset preview -
 
 | Stufe | Dauer |
 | --- | --- |
-| Training (Brush, 7 000 Iterationen) | 3 319 s ≈ 55 min |
+| Training (Brush, 7 000 Iterationen) | 3 319 s gemessen, davon einige Minuten Ruhezustand des PCs; reine Rechenzeit etwa 40 min |
 
 Ergebnis: deutlich schärfer als mit 1 000 Iterationen, kaum noch Floater. Eine durchs Bild laufende Person
 ist als halbtransparente Gestalt im Splat zu sehen (Fall für die Personenmaskierung, Meilenstein 2).
@@ -73,5 +73,6 @@ Datei aus dem Internet, umbenannt (`test_insv.insv`). Erkannt: Insta360 ONE RS (
 eine Videospur 3072×3072 (H.264, 24 fps, 47 s), also ein Objektiv pro Datei. Metadaten-Trailer Version 3
 mit den Datensätzen 1, 2, 3, 4, 5, 9, 10, 11; `offset`, `offset_v2` und `offset_v3` gelesen, Gyrodaten
 vorhanden. Damit ist der Leser erstmals mit einer echten Datei bestätigt. Die Datei des zweiten Objektivs
-fehlte. Die exportierten Bilder zeigen ein Fisheye, das auf dem Kopf steht (in der Kalibrierung steht beim
+fehlte. Eine zweite Datei derselben Aufnahme (`LRV_20220625_140410_11_008.insv`) ist die Vorschau der
+Kamera: beide Objektive nebeneinander in einer Spur, nur 384×384 pro Objektiv. Die exportierten Bilder zeigen ein Fisheye, das auf dem Kopf steht (in der Kalibrierung steht beim
 ersten Objektiv ein Winkel von rund 179°).

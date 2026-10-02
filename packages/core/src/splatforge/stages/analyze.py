@@ -10,7 +10,7 @@ from typing import Any
 from ..config import CameraType
 from ..errors import UnsupportedInputError
 from ..imageio import read_image
-from ..insv import partner_file, read_metadata
+from ..insv import is_preview_file, original_files, partner_file, read_metadata
 from .base import Stage, StageContext, write_json
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v", ".insv"}
@@ -260,6 +260,16 @@ class AnalyzeStage(Stage):
                 notes.append("Die Datei des zweiten Objektivs (…_00_… bzw. …_10_…) fehlt im selben Ordner")
             if layout == LensLayout.SIDE_BY_SIDE:
                 width //= 2
+        if is_preview_file(path):
+            notes.append(
+                "Das ist eine Vorschaudatei (LRV) in niedriger Auflösung, für einen Splat ungeeignet. "
+                "Die Originale beginnen mit VID_."
+            )
+            originals = original_files(path)
+            if originals:
+                notes.append("Originale im selben Ordner: " + ", ".join(p.name for p in originals))
+            else:
+                notes.append("Die Originaldateien (VID_…) liegen nicht im selben Ordner")
         return InputInfo(
             path=str(path),
             kind="video",
