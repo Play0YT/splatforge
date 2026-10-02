@@ -113,6 +113,10 @@ class AnalyzeStage(Stage):
     dirname = "01_analyze"
     weight = 0.5
 
+    def preflight(self, ctx: StageContext) -> None:
+        if any(Path(p).is_file() for p in ctx.config.inputs):
+            ctx.tools.ffprobe.check()
+
     def run(self, ctx: StageContext) -> dict[str, Any]:
         infos = [self._analyze_input(ctx, Path(p)) for p in ctx.config.inputs]
         kinds = {i.kind for i in infos}

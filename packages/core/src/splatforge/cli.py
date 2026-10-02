@@ -52,6 +52,9 @@ def _parser() -> argparse.ArgumentParser:
     hardware = sub.add_parser("hardware", help="Erkannte Hardware und Backends anzeigen")
     _brush_arg(hardware)
 
+    worker = sub.add_parser("_train-cpu", help=argparse.SUPPRESS)
+    worker.add_argument("task", type=Path)
+
     schema = sub.add_parser("schema", help="JSON-Schemas für Job-Konfiguration und Events schreiben")
     schema.add_argument("--out", type=Path, required=True)
     schema.add_argument("--force", action="store_true", help="Bestehende, abweichende Dateien ersetzen")
@@ -132,6 +135,10 @@ def main(argv: list[str] | None = None) -> int:
             job = JobDir(args.out)
             job.create(config)
             return _run_pipeline(job, job.load(), args.json)
+        if args.command == "_train-cpu":
+            from .training.cpu_worker import run as run_cpu_worker
+
+            return run_cpu_worker(args.task)
         if args.command == "resume":
             job = JobDir(args.job)
             config = job.load()

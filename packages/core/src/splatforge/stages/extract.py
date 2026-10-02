@@ -44,6 +44,10 @@ class ExtractStage(Stage):
     dirname = "02_extract"
     weight = 1.0
 
+    def preflight(self, ctx: StageContext) -> None:
+        if any(Path(p).is_file() for p in ctx.config.inputs):
+            ctx.tools.ffmpeg.check()
+
     def _plan(self, ctx: StageContext) -> tuple[list[InputInfo], list[int], int]:
         inputs = load_inputs(ctx)
         values = ctx.config.effective()

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import importlib.util
+import json
 import os
 import re
 import shutil
@@ -9,13 +11,16 @@ import time
 from pathlib import Path
 from typing import Any
 
+from ..adapters.base import stream_process
 from ..config import TrainBackend
 from ..errors import INSTALL_TORCH_HINT, SplatForgeError, ToolMissingError
 from ..events import EventType, ProgressEvent
+from ..training.cpu_worker import self_command
 from .base import Stage, StageContext, write_json
 from .sfm import DATASET_DIR, SfmStage
 
 FINAL_PLY = "final.ply"
+CPU_TASK_FILE = "cpu_task.json"
 # Nur Brushs eigene Fortschrittsmeldungen; alles andere (z. B. die sehr langen Debug-Zeilen von
 # brush_dataset beim Laden jedes Bildes) nur bei Warnungen und Fehlern.
 BRUSH_LOG_FILTER = "warn,brush_cli=info,brush_process=info"
@@ -28,11 +33,8 @@ _EXPORT = re.compile(r"export_(\d+)\.ply$")
 
 
 def torch_available() -> bool:
-    try:
-        import torch  # noqa: F401
-    except ImportError:
-        return False
-    return True
+    """Ob PyTorch installiert ist, ohne es zu laden (siehe training/cpu_worker.py)."""
+    return importlib.util.find_spec("torch") is not None
 
 
 class TrainStage(Stage):
@@ -96,40 +98,70 @@ class TrainStage(Stage):
         return info
 
     def _run_cpu(self, ctx: StageContext, dataset: Path, out: Path) -> dict[str, Any]:
-        from ..training.cpu import train_cpu
-
+        """Startet das CPU-Training in einem eigenen Prozess und übersetzt dessen Ausgabe in Events."""
         iterations = ctx.config.effective().iterations
-
-        def on_progress(step: int, total: int, loss: float, eta: float | None) -> None:
-            ctx.events.progress(step / total, eta, message=f"Iteration {step}/{total}, Verlust {loss:.4f}")
-
-        def on_preview(path: Path, step: int) -> None:
-            ctx.events.emit(
-                ProgressEvent(
-                    type=EventType.PREVIEW,
-                    message=f"Zwischenstand nach {step} Iterationen",
-                    data={"ply": str(path), "iteration": step},
-                )
-            )
-
-        result = train_cpu(
-            dataset=dataset,
-            work_dir=out,
-            iterations=iterations,
-            settings=ctx.config.train,
-            num_threads=ctx.config.resources.num_threads,
-            on_progress=on_progress,
-            on_preview=on_preview,
-            cancel=ctx.cancel,
+        task_file = out / CPU_TASK_FILE
+        write_json(
+            task_file,
+            {
+                "dataset": str(dataset),
+                "work_dir": str(out),
+                "iterations": iterations,
+                "settings": ctx.config.train.model_dump(mode="json"),
+                "num_threads": ctx.config.resources.num_threads,
+            },
         )
+        result: dict[str, Any] = {}
+        error: dict[str, Any] = {}
+
+        def on_line(line: str) -> None:
+            try:
+                msg = json.loads(line)
+            except ValueError:
+                if line.strip():
+                    ctx.events.log(line.strip()[:MAX_LOG_LINE])
+                return
+            kind = msg.get("type")
+            if kind == "progress":
+                step, total = int(msg["step"]), int(msg["total"])
+                ctx.events.progress(
+                    step / total,
+                    msg.get("eta"),
+                    message=f"Iteration {step}/{total}, Verlust {msg['loss']:.4f}",
+                )
+            elif kind == "preview":
+                ctx.events.emit(
+                    ProgressEvent(
+                        type=EventType.PREVIEW,
+                        message=f"Zwischenstand nach {msg['step']} Iterationen",
+                        data={"ply": msg["path"], "iteration": msg["step"]},
+                    )
+                )
+            elif kind == "result":
+                result.update(msg)
+            elif kind == "error":
+                error.update(msg)
+
+        outcome = stream_process(self_command("_train-cpu", str(task_file)), on_line, cancel=ctx.cancel)
+        if outcome.returncode != 0 or not result:
+            if error:
+                raise SplatForgeError(
+                    error.get("message", "CPU-Training fehlgeschlagen."), error.get("hint", "")
+                )
+            raise SplatForgeError(
+                "Das CPU-Training ist unerwartet abgebrochen.",
+                "Den Job mit 'splatforge resume' fortsetzen. Tritt der Fehler wieder auf, "
+                "weniger Frames oder eine kleinere Bildkante wählen.",
+                details=f"Exit-Code {outcome.returncode}\n{outcome.stdout[-4000:]}",
+            )
         return {
             "backend": "cpu",
             "iterations": iterations,
-            "gaussians": result.gaussians,
-            "psnr": result.psnr,
-            "ssim": result.ssim,
-            "eval_views": result.eval_views,
-            "seconds": round(result.seconds, 1),
+            "gaussians": result["gaussians"],
+            "psnr": result["psnr"],
+            "ssim": result["ssim"],
+            "eval_views": result["eval_views"],
+            "seconds": round(float(result["seconds"]), 1),
         }
 
     def _run_brush(self, ctx: StageContext, dataset: Path, out: Path) -> dict[str, Any]:

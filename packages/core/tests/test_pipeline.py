@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 
@@ -11,7 +12,9 @@ from conftest import needs_ffmpeg
 from splatforge.cli import main
 from splatforge.ply import read_ply
 
-pytest.importorskip("torch")
+# PyTorch hier nur suchen, nicht laden: Unter macOS darf es nicht im selben Prozess wie pycolmap liegen.
+if importlib.util.find_spec("torch") is None:
+    pytest.skip("PyTorch nicht installiert", allow_module_level=True)
 
 
 def _events(job: Path) -> list[dict[str, object]]:

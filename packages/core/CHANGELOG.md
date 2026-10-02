@@ -2,6 +2,20 @@
 
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionen nach [SemVer](https://semver.org/lang/de/).
 
+## [0.1.4] – 2026-10-02
+
+### Behoben
+- Ubuntu 22.04: Die Frame-Extraktion scheiterte mit FFmpeg 4.4 (`Unrecognized option 'fps_mode'`). Für
+  FFmpeg vor 5.1 wird jetzt die ältere Option `-vsync` verwendet; unterstützt wird FFmpeg ab 4.4.
+- macOS: Das Programm stürzte ab, sobald PyTorch und COLMAP im selben Prozess geladen wurden (beide bringen
+  eine eigene OpenMP-Bibliothek mit). Das CPU-Training läuft jetzt in einem eigenen Prozess und liest das
+  COLMAP-Modell selbst ein; PyTorch wird im Hauptprozess nie geladen.
+- Fehlt FFmpeg oder ist es zu alt, bricht der Job sofort beim Start mit einer klaren Meldung ab.
+
+### Geändert
+- `python -m splatforge` startet die Kommandozeile.
+- CI und Release-Workflow (`core-v<Version>`-Tag erstellt ein GitHub-Release).
+
 ## [0.1.3] – 2026-10-02
 
 ### Behoben

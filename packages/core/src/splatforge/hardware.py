@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ctypes
+import importlib.util
 import os
 import platform
 import shutil
@@ -135,12 +136,8 @@ def _nvidia_gpu(gpus: list[str]) -> bool:
 
 
 def detect(brush: BrushAdapter | None = None) -> HardwareInfo:
-    try:
-        import torch  # noqa: F401
-
-        has_torch = True
-    except ImportError:
-        has_torch = False
+    # Nur nachsehen, nicht laden: PyTorch und pycolmap vertragen sich unter macOS nicht im selben Prozess
+    has_torch = importlib.util.find_spec("torch") is not None
     gpus = detect_gpus()
     brush = brush or BrushAdapter()
     brush_version: str | None = None

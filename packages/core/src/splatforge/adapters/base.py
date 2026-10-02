@@ -149,47 +149,10 @@ class BinaryAdapter:
         cancel: CancelToken | None = None,
         cwd: Path | None = None,
         env: dict[str, str] | None = None,
-        merge_stderr: bool = True,
     ) -> RunResult:
         """Startet das Programm und ruft ``on_line`` für jede Ausgabezeile auf."""
-        cmd = [str(self.path), *(str(a) for a in args)]
-        proc = subprocess.Popen(  # noqa: S603 - Argumentliste, keine Shell
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT if merge_stderr else subprocess.PIPE,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            cwd=cwd,
-            env=env,
-        )
-        tail: list[str] = []
-        stop_watch = threading.Event()
-
-        def watch_cancel() -> None:
-            while not stop_watch.wait(0.5):
-                if cancel is not None and cancel.cancelled and proc.poll() is None:
-                    proc.terminate()
-
-        watcher = threading.Thread(target=watch_cancel, daemon=True)
-        watcher.start()
-        try:
-            assert proc.stdout is not None
-            for raw in proc.stdout:
-                line = raw.rstrip("\r\n")
-                tail.append(line)
-                del tail[:-200]
-                on_line(line)
-            proc.wait()
-        finally:
-            stop_watch.set()
-            if proc.poll() is None:
-                proc.kill()
-                proc.wait()
-        if cancel is not None and cancel.cancelled:
-            raise JobCancelledError()
-        result = RunResult(proc.returncode, "\n".join(tail), "")
-        if proc.returncode != 0:
+        result = stream_process([self.path, *args], on_line, cancel=cancel, cwd=cwd, env=env)
+        if result.returncode != 0:
             raise self.error_from_output(result)
         return result
 
@@ -202,3 +165,52 @@ class BinaryAdapter:
             "Details stehen im Log. Mit einer anderen Datei oder weniger Frames erneut versuchen.",
             details=f"Exit-Code {result.returncode}: {last}\n{output[-4000:]}",
         )
+
+
+def stream_process(
+    cmd: Sequence[str | Path],
+    on_line: Callable[[str], None],
+    cancel: CancelToken | None = None,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+) -> RunResult:
+    """Startet einen Prozess (ohne Shell) und ruft ``on_line`` für jede Zeile von stdout/stderr auf.
+
+    Bei Abbruch über ``cancel`` wird der Prozess beendet und ``JobCancelledError`` ausgelöst.
+    """
+    proc = subprocess.Popen(  # noqa: S603 - Argumentliste, keine Shell
+        [str(c) for c in cmd],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        cwd=cwd,
+        env=env,
+    )
+    tail: list[str] = []
+    stop_watch = threading.Event()
+
+    def watch_cancel() -> None:
+        while not stop_watch.wait(0.5):
+            if cancel is not None and cancel.cancelled and proc.poll() is None:
+                proc.terminate()
+
+    watcher = threading.Thread(target=watch_cancel, daemon=True)
+    watcher.start()
+    try:
+        assert proc.stdout is not None
+        for raw in proc.stdout:
+            line = raw.rstrip("\r\n")
+            tail.append(line)
+            del tail[:-200]
+            on_line(line)
+        proc.wait()
+    finally:
+        stop_watch.set()
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+    if cancel is not None and cancel.cancelled:
+        raise JobCancelledError()
+    return RunResult(proc.returncode, "\n".join(tail), "")

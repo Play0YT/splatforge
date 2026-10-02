@@ -10,6 +10,8 @@ from typing import Any
 from ..errors import SplatForgeError, UnsupportedInputError
 from .base import BinaryAdapter, CancelToken, Version
 
+FPS_MODE_SINCE: Version = (5, 1)
+
 _INSTALL_HINT = (
     "FFmpeg installieren (https://ffmpeg.org/download.html) oder den Pfad in den Einstellungen angeben."
 )
@@ -18,7 +20,8 @@ _INSTALL_HINT = (
 class FfprobeAdapter(BinaryAdapter):
     name = "ffprobe"
     executable = "ffprobe"
-    min_version: Version = (5, 0)
+    # Ubuntu 22.04 liefert FFmpeg 4.4
+    min_version: Version = (4, 4)
     install_hint = _INSTALL_HINT
 
     def probe(self, path: Path, timeout: float) -> dict[str, Any]:
@@ -42,12 +45,20 @@ class FfprobeAdapter(BinaryAdapter):
 class FfmpegAdapter(BinaryAdapter):
     name = "FFmpeg"
     executable = "ffmpeg"
-    min_version: Version = (5, 0)
+    # Ubuntu 22.04 liefert FFmpeg 4.4
+    min_version: Version = (4, 4)
     install_hint = _INSTALL_HINT
 
     def __init__(self, configured_path: Path | None = None) -> None:
         super().__init__(configured_path)
         self._filters: set[str] | None = None
+
+    def _passthrough_args(self) -> list[str]:
+        """Frames unverändert weitergeben. Die Option heisst erst ab FFmpeg 5.1 ``-fps_mode``."""
+        version = self.version()
+        if version is not None and version < FPS_MODE_SINCE:
+            return ["-vsync", "passthrough"]
+        return ["-fps_mode", "passthrough"]
 
     def has_filter(self, name: str) -> bool:
         if self._filters is None:
@@ -108,8 +119,7 @@ class FfmpegAdapter(BinaryAdapter):
             f"0:v:{stream_index}",
             "-vf",
             ",".join(filters),
-            "-fps_mode",
-            "passthrough",
+            *self._passthrough_args(),
             "-q:v",
             str(jpeg_quality),
             "-progress",

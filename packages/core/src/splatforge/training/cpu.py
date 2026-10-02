@@ -24,6 +24,7 @@ from typing import Any
 import cv2
 import numpy as np
 
+from .. import colmap_io
 from ..adapters.base import CancelToken
 from ..config import TrainSettings
 from ..errors import INSTALL_TORCH_HINT, ToolMissingError
@@ -93,28 +94,25 @@ class TrainResult:
 ProgressFn = Callable[[int, int, float, float | None], None]
 
 
-def _pose(image: Any) -> Any:
-    pose = image.cam_from_world
-    pose = pose() if callable(pose) else pose
-    return np.asarray(pose.matrix(), dtype=np.float32)
-
-
 def load_views(dataset: Path, max_edge: int) -> tuple[list[View], Any, Any]:
-    """Lädt das entzerrte COLMAP-Modell. Gibt Ansichten, Punkte und Punktfarben zurück."""
-    import pycolmap
+    """Lädt das entzerrte COLMAP-Modell. Gibt Ansichten, Punkte und Punktfarben zurück.
 
-    sparse = dataset / "sparse"
-    model = pycolmap.Reconstruction(sparse / "0" if (sparse / "0").is_dir() else sparse)
+    Liest die Binärdateien selbst (``colmap_io``), damit pycolmap in diesem Prozess nicht geladen wird.
+    """
+    model = colmap_io.model_dir(dataset / "sparse")
+    cameras = colmap_io.read_cameras(model / "cameras.bin")
+    images = colmap_io.read_images(model / "images.bin")
     masks_dir = dataset / "masks"
     views: list[View] = []
-    for image in sorted(model.images.values(), key=lambda im: im.name):
-        if hasattr(image, "has_pose") and not image.has_pose:
-            continue
-        cam = model.cameras[image.camera_id]
-        fx, fy, cx, cy = (float(v) for v in cam.params[:4])
-        if cam.model_name == "SIMPLE_PINHOLE":
+    for image in sorted(images.values(), key=lambda im: im.name):
+        cam = cameras[image.camera_id]
+        if cam.model == "SIMPLE_PINHOLE":
             fx, cx, cy = (float(v) for v in cam.params[:3])
             fy = fx
+        elif cam.model == "PINHOLE":
+            fx, fy, cx, cy = (float(v) for v in cam.params[:4])
+        else:
+            raise ValueError(f"Kameramodell {cam.model} ist nicht entzerrt; erwartet wird PINHOLE")
         img = read_image(dataset / "images" / image.name)
         if img is None:
             continue
@@ -132,7 +130,7 @@ def load_views(dataset: Path, max_edge: int) -> tuple[list[View], Any, Any]:
         views.append(
             View(
                 name=image.name,
-                world_to_cam=torch.from_numpy(_pose(image)),
+                world_to_cam=torch.from_numpy(image.world_to_cam().astype(np.float32)),
                 fx=fx * sx,
                 fy=fy * sy,
                 cx=cx * sx,
@@ -143,8 +141,7 @@ def load_views(dataset: Path, max_edge: int) -> tuple[list[View], Any, Any]:
                 mask=mask,
             )
         )
-    points = np.array([p.xyz for p in model.points3D.values()], dtype=np.float32).reshape(-1, 3)
-    colors = np.array([p.color for p in model.points3D.values()], dtype=np.float32).reshape(-1, 3) / 255.0
+    points, colors = colmap_io.read_points(model / "points3D.bin")
     return views, torch.from_numpy(points), torch.from_numpy(colors)
 
 
