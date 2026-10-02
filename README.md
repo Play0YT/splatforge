@@ -11,13 +11,14 @@ Geplant sind zwei eigenständige Anwendungen mit gemeinsamem Verarbeitungskern:
 
 | Teil | Version | Stand |
 | --- | --- | --- |
-| [`packages/core`](packages/core) | 0.2.2 | Kommandozeile: Video → Kamerapositionen → Splat (`.ply`) |
-| [`packages/job-schema`](packages/job-schema) | 0.1.0 | JSON-Schemas für Job-Konfiguration und Events |
+| [`packages/core`](packages/core) | 0.3.0 | Kommandozeile: Video → (Personen maskieren) → Kamerapositionen → Splat (`.ply`) |
+| [`packages/job-schema`](packages/job-schema) | 0.2.0 | JSON-Schemas für Job-Konfiguration und Events |
 | `packages/ui-components`, `apps/*` | – | noch nicht begonnen |
 
 Insta360-Dateien (`.insv`) werden gelesen und lassen sich als Einzelbilder pro Objektiv exportieren; ein
-Splat aus 360°-Material folgt noch. Ebenfalls noch nicht enthalten: Personenmaskierung, Desktop-App, Server. Änderungen pro Version stehen
-im `CHANGELOG.md` des jeweiligen Pakets.
+Splat aus 360°-Material folgt noch. Personen im Bild lassen sich automatisch ausblenden (`--masking`).
+Noch nicht enthalten: Desktop-App, Server. Änderungen pro Version stehen im `CHANGELOG.md` des jeweiligen
+Pakets.
 
 ## Lokal ausprobieren
 
@@ -101,6 +102,25 @@ uv run splatforge run ~/Videos/mein_video.mp4 --preset preview --out ~/splatforg
 
 **Gutes Testvideo:** 20 bis 60 Sekunden, langsam um einen Gegenstand mit viel Struktur herumgehen
 (Pflanze, Schuh, Sofa), nicht nur schwenken. Mehr Tipps in [`docs/capture-guide.md`](docs/capture-guide.md).
+
+## Personen ausblenden (Maskierung)
+
+Laufen Personen durchs Bild, hinterlassen sie im Splat Schlieren oder „Geister“. Mit `--masking` erkennt
+SplatForge sie und blendet sie für COLMAP und das Training aus:
+
+```
+uv run splatforge run <video> --preset preview --masking --out <neuer-ordner>
+```
+
+- Beim ersten Mal werden zwei KI-Modelle heruntergeladen (zusammen etwa 240 MB). Ohne Internet vorher auf
+  einem anderen Rechner `uv run splatforge models --download` ausführen und den angezeigten Ordner kopieren.
+  `uv run splatforge models` zeigt, was schon da ist.
+- Kontrollbilder mit rot markierten Bereichen liegen in `<ordner>/05_mask/overlays`, die Masken selbst in
+  `<ordner>/05_mask/masks`. Bilder, die zu mehr als 40 % aus Person bestehen, werden nicht verwendet.
+- Genauer, aber langsamer: `--mask-model sam2.1-small` (Standard: mit NVIDIA-Grafikkarte Small, sonst Tiny).
+- Auch Fahrzeuge oder Tiere ausblenden: `--mask-classes person,vehicle,animal`.
+- Dauer auf der CPU: Richtwert 3 Sekunden pro Bild (gemessen auf einem Cloud-Testrechner, auf älteren PCs
+  eher mehr), bei 120 Bildern also gut 6 Minuten zusätzlich.
 
 ## Insta360-Dateien (.insv) ansehen
 

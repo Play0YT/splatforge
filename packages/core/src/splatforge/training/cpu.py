@@ -123,7 +123,10 @@ def load_views(dataset: Path, max_edge: int) -> tuple[list[View], Any, Any]:
         sy, sx = img.shape[0] / h, img.shape[1] / w
         rgb = torch.from_numpy(cv2.cvtColor(img, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0)
         mask = None
-        mask_img = read_image(masks_dir / f"{image.name}.png", cv2.IMREAD_GRAYSCALE)
+        # <stem>.png wie bei Brush; <name>.png (COLMAP-Schreibweise) für ältere Datensätze
+        mask_img = read_image(masks_dir / f"{Path(image.name).stem}.png", cv2.IMREAD_GRAYSCALE)
+        if mask_img is None:
+            mask_img = read_image(masks_dir / f"{image.name}.png", cv2.IMREAD_GRAYSCALE)
         if mask_img is not None:
             mask_img = cv2.resize(mask_img, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_NEAREST)
             mask = torch.from_numpy((mask_img > 127).astype(np.float32))[..., None]

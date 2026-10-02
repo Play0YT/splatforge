@@ -25,8 +25,8 @@ einer anderen App.
 ├─ 01_analyze/         analysis.json
 ├─ 02_extract/         frames/, frames.json
 ├─ 03_select/          images/ (ausgewählte Frames), selection.json
-├─ 05_mask/            (Meilenstein 2) masks/<bild>.png
-├─ 06_sfm/             database.db, sparse_*/, dataset/ (entzerrt: images/, sparse/), colmap.log
+├─ 05_mask/            nur mit --masking: masks/<bild>.png (COLMAP-Format), overlays/, mask.json
+├─ 06_sfm/             database.db, sparse_*/, dataset/ (entzerrt: images/, sparse/, masks/), colmap.log
 ├─ 07_train/           backend.txt, checkpoint.pt bzw. brush_exports/, preview.ply, final.ply
 └─ 08_export/          splat.ply, report.json
 ```
@@ -46,10 +46,26 @@ Gemeinsame Schnittstelle `Stage` (`stages/base.py`): `run`, `is_done`, `estimate
 | 2 | Frame-Extraktion | `stages/extract.py` | fertig |
 | 3 | Frame-Auswahl | `stages/select.py` | fertig |
 | 4 | 360°-Aufbereitung | – | Meilenstein 3 |
-| 5 | Personenmaskierung | – | Meilenstein 2 |
+| 5 | Personenmaskierung | `stages/mask.py`, `masking/` | ONNX-Bildmodell; Video-Verfolgung folgt |
 | 6 | Kamerapositionen | `stages/sfm.py` | fertig |
 | 7 | Training | `stages/train.py`, `training/cpu.py` | Brush + CPU |
 | 8 | Export | `stages/export.py` | `.ply` + Report; Floater/`.spz` in Meilenstein 7 |
+
+## Hintergrundprozesse
+
+Bibliotheken mit eigener Laufzeit (PyTorch, onnxruntime) laufen nie im selben Prozess wie pycolmap: Unter
+macOS bringen sie unverträgliche OpenMP-Versionen mit. Das CPU-Training (`splatforge _train-cpu`) und die
+Maskierung (`splatforge _mask`) starten deshalb als eigener Prozess (`worker.py`, `stages/_worker.py`). Sie
+lesen einen Auftrag als JSON-Datei und melden Fortschritt, Warnungen, Ergebnis oder Fehler als JSON-Zeilen.
+
+## Maskierung
+
+`masking/` erkennt Objekte mit RT-DETR, verbindet die Boxen über die Bilder (`tracking.py`), füllt kurze
+Lücken per Interpolation und erzeugt mit SAM 2.1 pixelgenaue Masken (`onnx_models.py`). Modelle verwaltet
+`models.py` (gepinnte Hugging-Face-Revision, SHA-256-Prüfung, Cache-Ordner). Die Masken gehen an COLMAP
+(`mask_path`) und werden nach dem Mapping mit derselben COLMAP-Entzerrung wie die Bilder entzerrt
+(`stages/sfm.py`, `undistort_masks`), damit sie pixelgenau passen. Im Datensatz heissen sie
+`masks/<bildname ohne Endung>.png`, wie Brush sie sucht.
 
 ## Events
 

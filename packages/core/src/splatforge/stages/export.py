@@ -59,8 +59,20 @@ def write_report(ctx: StageContext, stage_names: list[tuple[str, str]], total_se
             "ssim": train.get("ssim"),
             "eval_views": train.get("eval_views"),
         },
+        "masking": _mask_summary(stages.get("mask")),
         "seconds_this_run": round(total_seconds, 1),
         "stages": stages,
         "warnings": warnings,
     }
     write_json(ctx.job.stage_dir(ExportStage.dirname) / REPORT_FILE, report)
+
+
+def _mask_summary(info: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Kurzfassung der Maskierung für report.json; ``None``, wenn sie nicht lief."""
+    if not info:
+        return None
+    keys = ("method", "model", "providers", "frames", "frames_with_objects", "interpolated_boxes")
+    summary = {k: info.get(k) for k in keys}
+    summary["excluded_images"] = len(info.get("excluded", []))
+    summary["mean_masked_fraction"] = info.get("mean_masked_fraction")
+    return summary

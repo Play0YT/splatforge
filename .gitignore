@@ -37,3 +37,4 @@ tests/data/
 *.mp4
 *.mov
 *.insv
+.ci-models/

@@ -59,6 +59,127 @@
       "title": "Mapper",
       "type": "string"
     },
+    "MaskClass": {
+      "enum": [
+        "person",
+        "vehicle",
+        "animal"
+      ],
+      "title": "MaskClass",
+      "type": "string"
+    },
+    "MaskMethod": {
+      "enum": [
+        "auto",
+        "image",
+        "video"
+      ],
+      "title": "MaskMethod",
+      "type": "string"
+    },
+    "MaskModel": {
+      "enum": [
+        "auto",
+        "sam2.1-tiny",
+        "sam2.1-small"
+      ],
+      "title": "MaskModel",
+      "type": "string"
+    },
+    "MaskSettings": {
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "$ref": "#/$defs/MaskMethod",
+          "default": "auto"
+        },
+        "model": {
+          "$ref": "#/$defs/MaskModel",
+          "default": "auto"
+        },
+        "classes": {
+          "description": "Was maskiert wird",
+          "items": {
+            "$ref": "#/$defs/MaskClass"
+          },
+          "minItems": 1,
+          "title": "Classes",
+          "type": "array"
+        },
+        "detection_threshold": {
+          "default": 0.5,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Detection Threshold",
+          "type": "number"
+        },
+        "margin_fraction": {
+          "default": 0.015,
+          "description": "Sicherheitsrand (Anteil Bildbreite)",
+          "maximum": 0.2,
+          "minimum": 0,
+          "title": "Margin Fraction",
+          "type": "number"
+        },
+        "max_object_fraction": {
+          "default": 0.4,
+          "description": "Bilder mit mehr maskierter Fläche werden ausgeschlossen",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Max Object Fraction",
+          "type": "number"
+        },
+        "min_usable_fraction": {
+          "default": 0.6,
+          "description": "Warnung, wenn im Mittel weniger Fläche unmaskiert bleibt",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Min Usable Fraction",
+          "type": "number"
+        },
+        "track_min_iou": {
+          "default": 0.3,
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Track Min Iou",
+          "type": "number"
+        },
+        "max_gap_frames": {
+          "default": 3,
+          "description": "Längste Lücke, die per Interpolation gefüllt wird",
+          "minimum": 0,
+          "title": "Max Gap Frames",
+          "type": "integer"
+        },
+        "device": {
+          "default": "auto",
+          "pattern": "^(auto|cpu)$",
+          "title": "Device",
+          "type": "string"
+        },
+        "models_dir": {
+          "anyOf": [
+            {
+              "format": "path",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Eigener Modell-Ordner, sonst Cache",
+          "title": "Models Dir"
+        },
+        "write_overlays": {
+          "default": true,
+          "title": "Write Overlays",
+          "type": "boolean"
+        }
+      },
+      "title": "MaskSettings",
+      "type": "object"
+    },
     "Preset": {
       "enum": [
         "preview",
@@ -429,9 +550,28 @@
     },
     "masking": {
       "default": false,
-      "description": "Personenmaskierung (ab Meilenstein 2)",
+      "description": "Personen (und weitere Klassen) automatisch maskieren",
       "title": "Masking",
       "type": "boolean"
+    },
+    "mask": {
+      "$ref": "#/$defs/MaskSettings",
+      "default": {
+        "method": "auto",
+        "model": "auto",
+        "classes": [
+          "person"
+        ],
+        "detection_threshold": 0.5,
+        "margin_fraction": 0.015,
+        "max_object_fraction": 0.4,
+        "min_usable_fraction": 0.6,
+        "track_min_iou": 0.3,
+        "max_gap_frames": 3,
+        "device": "auto",
+        "models_dir": null,
+        "write_overlays": true
+      }
     },
     "tools": {
       "$ref": "#/$defs/ToolSettings",

@@ -16,7 +16,7 @@ from typing import Any
 
 from . import __version__
 from .adapters import CancelToken
-from .config import JobConfig, Preset, TrainBackend
+from .config import JobConfig, MaskMethod, MaskModel, Preset, TrainBackend
 from .errors import SplatForgeError
 from .events import EventSink
 from .job import JobDir
@@ -38,6 +38,19 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--iterations", type=int, help="Trainings-Iterationen")
     run.add_argument("--backend", choices=[b.value for b in TrainBackend], help="Trainings-Backend")
     run.add_argument("--threads", type=int, help="Anzahl CPU-Threads (0 = alle)")
+    run.add_argument("--masking", action="store_true", help="Personen automatisch erkennen und ausblenden")
+    run.add_argument(
+        "--mask-method",
+        choices=[m.value for m in MaskMethod],
+        help="Maskierungsverfahren (Standard: auto)",
+    )
+    run.add_argument(
+        "--mask-model", choices=[m.value for m in MaskModel], help="Segmentierungsmodell (Standard: auto)"
+    )
+    run.add_argument(
+        "--mask-classes",
+        help="Kommagetrennt, was maskiert wird: person, vehicle, animal (Standard: person)",
+    )
     _brush_arg(run)
     _output_args(run)
 
@@ -57,11 +70,17 @@ def _parser() -> argparse.ArgumentParser:
     frames.add_argument("--count", type=int, default=20, help="Anzahl Bilder pro Objektiv (Standard 20)")
     frames.add_argument("--max-edge", type=int, default=1920, help="Maximale Bildkante in Pixeln")
 
+    models = sub.add_parser("models", help="KI-Modelle für die Maskierung anzeigen oder herunterladen")
+    models.add_argument("--download", nargs="*", metavar="MODELL", help="Herunterladen (ohne Namen: alle)")
+    models.add_argument("--dir", type=Path, help="Modell-Ordner (Standard: Cache-Ordner)")
+
     hardware = sub.add_parser("hardware", help="Erkannte Hardware und Backends anzeigen")
     _brush_arg(hardware)
 
     worker = sub.add_parser("_train-cpu", help=argparse.SUPPRESS)
     worker.add_argument("task", type=Path)
+    mask_worker = sub.add_parser("_mask", help=argparse.SUPPRESS)
+    mask_worker.add_argument("task", type=Path)
 
     schema = sub.add_parser("schema", help="JSON-Schemas für Job-Konfiguration und Events schreiben")
     schema.add_argument("--out", type=Path, required=True)
@@ -96,6 +115,15 @@ def _load_config(args: argparse.Namespace) -> JobConfig:
         data.setdefault("tools", {})["brush"] = str(args.brush)
     if args.threads is not None:
         data.setdefault("resources", {})["num_threads"] = args.threads
+    if args.masking:
+        data["masking"] = True
+    mask = data.setdefault("mask", {})
+    if args.mask_method:
+        mask["method"] = args.mask_method
+    if args.mask_model:
+        mask["model"] = args.mask_model
+    if args.mask_classes:
+        mask["classes"] = [c.strip() for c in args.mask_classes.split(",") if c.strip()]
     return JobConfig.model_validate(data)
 
 
@@ -147,6 +175,10 @@ def main(argv: list[str] | None = None) -> int:
             from .training.cpu_worker import run as run_cpu_worker
 
             return run_cpu_worker(args.task)
+        if args.command == "_mask":
+            from .masking.worker import run as run_mask_worker
+
+            return run_mask_worker(args.task)
         if args.command == "resume":
             job = JobDir(args.job)
             config = job.load()
@@ -163,6 +195,8 @@ def main(argv: list[str] | None = None) -> int:
             for folder in export_frames(args.input, args.out, args.count, args.max_edge):
                 print(f"{folder}: {len(list(folder.glob('*.jpg')))} Bilder")
             return 0
+        if args.command == "models":
+            return _models(args.download, args.dir)
         if args.command == "hardware":
             from .adapters import BrushAdapter
             from .hardware import detect
@@ -178,6 +212,31 @@ def main(argv: list[str] | None = None) -> int:
             print(f"Was tun: {exc.hint}", file=sys.stderr)
         return int(ExitCode.FAILED)
     return int(ExitCode.USAGE)
+
+
+def _models(download: list[str] | None, folder: Path | None) -> int:
+    from .models import MODELS, default_models_dir, ensure_model, is_installed
+
+    folder = folder or default_models_dir()
+    if download is not None:
+        unknown = [k for k in download if k not in MODELS]
+        if unknown:
+            print(f"Unbekannte Modelle: {', '.join(unknown)}. Möglich: {', '.join(MODELS)}", file=sys.stderr)
+            return int(ExitCode.USAGE)
+        for key in download or list(MODELS):
+            print(f"{key}: wird geprüft bzw. heruntergeladen ({MODELS[key].size / 1e6:.0f} MB) …", flush=True)
+            ensure_model(key, folder)
+    status = {
+        key: {
+            "installed": is_installed(model, folder),
+            "megabytes": round(model.size / 1e6),
+            "license": model.license,
+            "description": model.description,
+        }
+        for key, model in MODELS.items()
+    }
+    print(json.dumps({"folder": str(folder), "models": status}, indent=2, ensure_ascii=False))
+    return 0
 
 
 def _analyze(path: Path) -> int:

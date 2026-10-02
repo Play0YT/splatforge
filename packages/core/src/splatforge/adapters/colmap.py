@@ -90,7 +90,9 @@ class ColmapAdapter:
         single_camera: bool,
         masks: Path | None,
         num_threads: int,
+        image_names: list[str] | None = None,
     ) -> None:
+        """``image_names`` beschränkt die Suche auf diese Bilder (leer oder ``None`` = alle)."""
         pc = self.pycolmap
         reader = pc.ImageReaderOptions()
         reader.camera_model = camera_model
@@ -101,7 +103,12 @@ class ColmapAdapter:
         mode = pc.CameraMode.SINGLE if single_camera else pc.CameraMode.AUTO
         with self._native_log():
             pc.extract_features(
-                database, images, camera_mode=mode, reader_options=reader, extraction_options=extraction
+                database,
+                images,
+                image_names=image_names or [],
+                camera_mode=mode,
+                reader_options=reader,
+                extraction_options=extraction,
             )
 
     def match_sequential(
@@ -136,10 +143,24 @@ class ColmapAdapter:
             result: dict[int, Any] = pc.global_mapping(database, images, output, options=options)
         return result
 
-    def undistort(self, model: Path, images: Path, output: Path, num_threads: int) -> None:
+    def undistort(
+        self,
+        model: Path,
+        images: Path,
+        output: Path,
+        num_threads: int,
+        image_names: list[str] | None = None,
+        jpeg_quality: int = -1,
+    ) -> None:
         with self._native_log():
             self.pycolmap.undistort_images(
-                output, model, images, output_type="COLMAP", num_threads=num_threads or -1
+                output,
+                model,
+                images,
+                image_names=image_names or [],
+                output_type="COLMAP",
+                jpeg_quality=jpeg_quality,
+                num_threads=num_threads or -1,
             )
 
     def read_model(self, path: Path) -> Any:

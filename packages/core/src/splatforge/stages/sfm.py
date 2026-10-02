@@ -7,14 +7,21 @@ import time
 from pathlib import Path
 from typing import Any
 
-from ..adapters.colmap import DatabaseStats
+import cv2
+
+from ..adapters.colmap import ColmapAdapter, DatabaseStats
 from ..config import Mapper, SfmSettings
 from ..errors import ReconstructionError
+from ..imageio import read_image, write_image
 from .base import Stage, StageContext, write_json
+from .mask import MaskStage, excluded_images
 from .select import IMAGES_DIR, SelectStage
 
 DATASET_DIR = "dataset"
 SFM_FILE = "sfm.json"
+MASKS_DIR = "masks"
+# Zwischenordner für das Entzerren der Masken
+MASK_UNDISTORT_DIR = "_masks_undistort"
 
 
 def diagnose(stats: DatabaseStats, registered: int, settings: SfmSettings) -> tuple[str, str]:
@@ -57,12 +64,20 @@ class SfmStage(Stage):
         images = ctx.job.stage_dir(SelectStage.dirname) / IMAGES_DIR
         database = out / "database.db"
         masks = self._masks_dir(ctx)
+        excluded = excluded_images(ctx) if masks is not None else set()
+        names = sorted(p.name for p in images.iterdir() if p.name not in excluded)
         timings: dict[str, float] = {}
 
         start = time.monotonic()
         ctx.events.progress(0.0, message="Merkmale suchen")
         colmap.extract_features(
-            database, images, settings.camera_model, settings.single_camera, masks, threads
+            database,
+            images,
+            settings.camera_model,
+            settings.single_camera,
+            masks,
+            threads,
+            image_names=names if excluded else None,
         )
         timings["features_s"] = time.monotonic() - start
         ctx.cancel.raise_if_cancelled()
@@ -82,7 +97,7 @@ class SfmStage(Stage):
         timings["matching_s"] = time.monotonic() - start
         ctx.cancel.raise_if_cancelled()
 
-        num_images = len(list(images.iterdir()))
+        num_images = len(names)
         start = time.monotonic()
         model_dir, registered, mapper_used = self._map(ctx, database, images, out, num_images)
         timings["mapping_s"] = time.monotonic() - start
@@ -105,13 +120,16 @@ class SfmStage(Stage):
             shutil.rmtree(dataset)
         colmap.undistort(model_dir, images, dataset, threads)
         if masks is not None:
-            ctx.warn("Masken werden beim Entzerren noch nicht mitgeführt (folgt mit Meilenstein 2).")
+            ctx.events.progress(0.95, message="Masken entzerren")
+            undistort_masks(colmap, model_dir, masks, dataset, out / MASK_UNDISTORT_DIR, threads)
         info = {
             "registered_images": registered,
             "total_images": num_images,
             "registered_ratio": round(ratio, 3),
             "mapper": mapper_used,
             "points3d": colmap.read_model(model_dir).num_points3D(),
+            "masked": masks is not None,
+            "excluded_images": len(excluded),
             **{k: round(v, 1) for k, v in timings.items()},
         }
         write_json(out / SFM_FILE, info)
@@ -119,8 +137,10 @@ class SfmStage(Stage):
         return info
 
     def _masks_dir(self, ctx: StageContext) -> Path | None:
-        # Stufe 5 (Personenmaskierung) folgt in Meilenstein 2.
-        candidate = ctx.job.stage_dir("05_mask") / "masks"
+        """Masken der Stufe 5, falls die Maskierung für diesen Job an ist und fertig gelaufen ist."""
+        if not ctx.config.masking or not ctx.job.is_done(MaskStage.dirname):
+            return None
+        candidate = ctx.job.stage_dir(MaskStage.dirname) / MASKS_DIR
         return candidate if candidate.is_dir() else None
 
     def _map(
@@ -165,3 +185,46 @@ class SfmStage(Stage):
             if registered / max(num_images, 1) >= settings.min_registered_ratio:
                 break
         return best
+
+
+def undistort_masks(
+    colmap: ColmapAdapter, model_dir: Path, masks: Path, dataset: Path, work: Path, num_threads: int
+) -> int:
+    """Entzerrt die Masken genau wie die Bilder und legt sie als ``dataset/masks/<stem>.png`` ab.
+
+    Trick: COLMAP entzerrt die Masken selbst, damit sie pixelgenau zu den entzerrten Bildern passen.
+    Dafür bekommen sie vorübergehend die Namen der Bilder. COLMAP schreibt JPEG; danach wird wieder
+    scharf in schwarz (ignorieren) und weiss (verwenden) getrennt. Der Dateiname ``<stem>.png`` ist das
+    Format, das Brush (ab 0.3) und das CPU-Backend lesen. Gibt die Anzahl entzerrter Masken zurück.
+    """
+    if work.exists():
+        shutil.rmtree(work)
+    renamed = work / "input"
+    renamed.mkdir(parents=True)
+    names = sorted(p.name for p in (dataset / IMAGES_DIR).iterdir())
+    available: list[str] = []
+    for name in names:
+        mask = read_image(masks / f"{name}.png", cv2.IMREAD_GRAYSCALE)
+        if mask is None:
+            continue
+        # Verlustfrei als PNG speichern; COLMAP erkennt das Format am Inhalt, nicht an der Endung.
+        ok, encoded = cv2.imencode(".png", mask)
+        if not ok:
+            continue
+        encoded.tofile(renamed / name)
+        available.append(name)
+    if not available:
+        shutil.rmtree(work)
+        return 0
+    colmap.undistort(
+        model_dir, renamed, work / "output", num_threads, image_names=available, jpeg_quality=100
+    )
+    target = dataset / MASKS_DIR
+    target.mkdir(exist_ok=True)
+    for name in available:
+        mask = read_image(work / "output" / IMAGES_DIR / name, cv2.IMREAD_GRAYSCALE)
+        if mask is None:
+            continue
+        write_image(target / f"{Path(name).stem}.png", ((mask > 127) * 255).astype("uint8"))
+    shutil.rmtree(work)
+    return len(available)

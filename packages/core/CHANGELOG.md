@@ -2,6 +2,41 @@
 
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionen nach [SemVer](https://semver.org/lang/de/).
 
+## [0.3.0] – 2026-10-02
+
+### Hinzugefügt
+- Personenmaskierung (Meilenstein 2), nur auf Wunsch: `splatforge run … --masking`. Neue Stufe 5
+  (`05_mask`) zwischen Frame-Auswahl und COLMAP:
+  - Personen erkennen mit RT-DETR R18, Lücken einzelner Bilder per Box-Verfolgung und Interpolation
+    schliessen, pixelgenaue Maske mit SAM 2.1 (beides ONNX, Apache-2.0), Sicherheitsrand 1,5 % der
+    Bildbreite.
+  - Qualitätskontrolle: Bilder mit mehr als 40 % maskierter Fläche werden nicht verwendet; Warnung, wenn im
+    Mittel zu wenig unmaskierte Fläche bleibt.
+  - Kontrollbilder mit rot markierten Bereichen in `05_mask/overlays`.
+  - Läuft in einem eigenen Hintergrundprozess; nutzt CUDA, DirectML oder CoreML, sonst die CPU.
+- Optionen `--mask-model` (`auto`, `sam2.1-tiny`, `sam2.1-small`; auto: Small mit NVIDIA-GPU, sonst Tiny),
+  `--mask-method` (`auto`, `image`, `video`) und `--mask-classes` (`person`, `vehicle`, `animal`).
+  Weitere Einstellungen im neuen Abschnitt `mask` der Job-Konfiguration.
+- Befehl `splatforge models`: zeigt die Modelle an und lädt sie mit `--download` vorab herunter (z. B. für
+  Rechner ohne Internet). Modelle liegen im Cache-Ordner (Windows `%LOCALAPPDATA%\SplatForge\models`,
+  macOS `~/Library/Caches/SplatForge/models`, Linux `~/.cache/splatforge/models`) oder unter
+  `SPLATFORGE_MODELS_DIR`. Jede Datei ist auf eine feste Version gepinnt und wird per SHA-256 geprüft.
+- `report.json` enthält einen Abschnitt `masking`.
+
+### Geändert
+- COLMAP nutzt die Masken bei der Merkmalssuche; ausgeschlossene Bilder werden gar nicht verwendet.
+- Die Masken werden mit derselben COLMAP-Entzerrung wie die Bilder entzerrt und liegen danach als
+  `06_sfm/dataset/masks/<bildname ohne Endung>.png` im Datensatz (schwarz = ignorieren). Brush (ab 0.3) und
+  das CPU-Backend blenden diese Bereiche beim Training aus.
+- Das CPU-Backend liest Masken als `<name ohne Endung>.png` und weiterhin als `<name>.png`.
+- Neue Abhängigkeit `onnxruntime` (MIT).
+
+### Hinweise
+- Die Video-Verfolgung mit SAM 2 (PyTorch) für NVIDIA-Grafikkarten folgt in einer späteren Version;
+  `--mask-method video` verwendet bis dahin das Bildmodell und meldet das.
+- Keine Migration nötig: Die neuen Felder haben Standardwerte, `masking` bleibt standardmässig aus.
+  Bestehende Jobs laufen unverändert weiter.
+
 ## [0.2.2] – 2026-10-02
 
 ### Geändert

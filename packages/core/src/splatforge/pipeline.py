@@ -16,6 +16,7 @@ from .stages.analyze import AnalyzeStage
 from .stages.base import Stage, StageContext, Tools
 from .stages.export import ExportStage, write_report
 from .stages.extract import ExtractStage
+from .stages.mask import MaskStage
 from .stages.select import SelectStage
 from .stages.sfm import SfmStage
 from .stages.train import TrainStage
@@ -31,8 +32,16 @@ class ExitCode(IntEnum):
 
 
 def default_stages() -> list[Stage]:
-    # Stufe 4 (360°) und 5 (Maskierung) folgen in Meilenstein 2 und 3.
-    return [AnalyzeStage(), ExtractStage(), SelectStage(), SfmStage(), TrainStage(), ExportStage()]
+    # Stufe 4 (360°-Aufbereitung) folgt mit Meilenstein 3.
+    return [
+        AnalyzeStage(),
+        ExtractStage(),
+        SelectStage(),
+        MaskStage(),
+        SfmStage(),
+        TrainStage(),
+        ExportStage(),
+    ]
 
 
 class Pipeline:

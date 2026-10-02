@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import importlib.util
-import json
 import os
 import re
 import shutil
@@ -11,11 +10,10 @@ import time
 from pathlib import Path
 from typing import Any
 
-from ..adapters.base import stream_process
 from ..config import TrainBackend
 from ..errors import INSTALL_TORCH_HINT, SplatForgeError, ToolMissingError
 from ..events import EventType, ProgressEvent
-from ..training.cpu_worker import self_command
+from ._worker import run_worker
 from .base import Stage, StageContext, write_json
 from .sfm import DATASET_DIR, SfmStage
 
@@ -100,36 +98,16 @@ class TrainStage(Stage):
     def _run_cpu(self, ctx: StageContext, dataset: Path, out: Path) -> dict[str, Any]:
         """Startet das CPU-Training in einem eigenen Prozess und übersetzt dessen Ausgabe in Events."""
         iterations = ctx.config.effective().iterations
-        task_file = out / CPU_TASK_FILE
-        write_json(
-            task_file,
-            {
-                "dataset": str(dataset),
-                "work_dir": str(out),
-                "iterations": iterations,
-                "settings": ctx.config.train.model_dump(mode="json"),
-                "num_threads": ctx.config.resources.num_threads,
-            },
-        )
-        result: dict[str, Any] = {}
-        error: dict[str, Any] = {}
 
-        def on_line(line: str) -> None:
-            try:
-                msg = json.loads(line)
-            except ValueError:
-                if line.strip():
-                    ctx.events.log(line.strip()[:MAX_LOG_LINE])
-                return
-            kind = msg.get("type")
-            if kind == "progress":
+        def on_message(msg: dict[str, Any]) -> None:
+            if msg.get("type") == "progress":
                 step, total = int(msg["step"]), int(msg["total"])
                 ctx.events.progress(
                     step / total,
                     msg.get("eta"),
                     message=f"Iteration {step}/{total}, Verlust {msg['loss']:.4f}",
                 )
-            elif kind == "preview":
+            elif msg.get("type") == "preview":
                 ctx.events.emit(
                     ProgressEvent(
                         type=EventType.PREVIEW,
@@ -137,23 +115,21 @@ class TrainStage(Stage):
                         data={"ply": msg["path"], "iteration": msg["step"]},
                     )
                 )
-            elif kind == "result":
-                result.update(msg)
-            elif kind == "error":
-                error.update(msg)
 
-        outcome = stream_process(self_command("_train-cpu", str(task_file)), on_line, cancel=ctx.cancel)
-        if outcome.returncode != 0 or not result:
-            if error:
-                raise SplatForgeError(
-                    error.get("message", "CPU-Training fehlgeschlagen."), error.get("hint", "")
-                )
-            raise SplatForgeError(
-                "Das CPU-Training ist unerwartet abgebrochen.",
-                "Den Job mit 'splatforge resume' fortsetzen. Tritt der Fehler wieder auf, "
-                "weniger Frames oder eine kleinere Bildkante wählen.",
-                details=f"Exit-Code {outcome.returncode}\n{outcome.stdout[-4000:]}",
-            )
+        result = run_worker(
+            ctx,
+            "_train-cpu",
+            out / CPU_TASK_FILE,
+            {
+                "dataset": str(dataset),
+                "work_dir": str(out),
+                "iterations": iterations,
+                "settings": ctx.config.train.model_dump(mode="json"),
+                "num_threads": ctx.config.resources.num_threads,
+            },
+            "Das CPU-Training",
+            on_message,
+        )
         return {
             "backend": "cpu",
             "iterations": iterations,

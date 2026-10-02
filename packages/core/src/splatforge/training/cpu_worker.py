@@ -11,20 +11,15 @@ from __future__ import annotations
 
 import json
 import signal
-import sys
 from pathlib import Path
 from types import FrameType
-from typing import Any
 
 from ..adapters.base import CancelToken
 from ..config import TrainSettings
 from ..errors import JobCancelledError, SplatForgeError
+from ..worker import emit
 
 EXIT_CANCELLED = 130
-
-
-def _emit(**data: Any) -> None:
-    print(json.dumps(data, ensure_ascii=False), flush=True)
 
 
 def run(task_file: Path) -> int:
@@ -46,18 +41,18 @@ def run(task_file: Path) -> int:
             iterations=int(task["iterations"]),
             settings=TrainSettings.model_validate(task["settings"]),
             num_threads=int(task["num_threads"]),
-            on_progress=lambda step, total, loss, eta: _emit(
+            on_progress=lambda step, total, loss, eta: emit(
                 type="progress", step=step, total=total, loss=loss, eta=eta
             ),
-            on_preview=lambda path, step: _emit(type="preview", path=str(path), step=step),
+            on_preview=lambda path, step: emit(type="preview", path=str(path), step=step),
             cancel=cancel,
         )
     except JobCancelledError:
         return EXIT_CANCELLED
     except SplatForgeError as exc:
-        _emit(type="error", message=exc.message, hint=exc.hint)
+        emit(type="error", message=exc.message, hint=exc.hint)
         return 1
-    _emit(
+    emit(
         type="result",
         ply=str(result.ply),
         gaussians=result.gaussians,
@@ -67,10 +62,3 @@ def run(task_file: Path) -> int:
         seconds=result.seconds,
     )
     return 0
-
-
-def self_command(*args: str) -> list[str]:
-    """Befehl, der SplatForge selbst erneut startet (auch als gepackte Anwendung)."""
-    if getattr(sys, "frozen", False):
-        return [sys.executable, *args]
-    return [sys.executable, "-m", "splatforge", *args]

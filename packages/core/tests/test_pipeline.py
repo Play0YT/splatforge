@@ -77,3 +77,30 @@ def test_missing_backend_fails_before_any_stage(tmp_path: Path, monkeypatch: pyt
     assert events[-1]["type"] == "job_failed"
     assert "PyTorch" in str(events[-1]["hint"])
     assert not (job / "01_analyze").exists()
+
+
+def _mask_models_installed() -> bool:
+    from splatforge.models import MODELS, default_models_dir, is_installed
+
+    return all(is_installed(MODELS[k], default_models_dir()) for k in ("rtdetr-r18", "sam2.1-tiny"))
+
+
+@needs_ffmpeg
+@pytest.mark.integration
+@pytest.mark.skipif(not _mask_models_installed(), reason="Maskierungsmodelle nicht im Cache")
+def test_run_with_masking(tmp_path: Path, synthetic_video: Path) -> None:
+    """Mit --masking läuft Stufe 5, und die Masken landen entzerrt im Datensatz für das Training."""
+    job = tmp_path / "job"
+    args = ["run", str(synthetic_video), "--out", str(job), "--frames", "25", "--iterations", "20",
+            "--backend", "cpu", "--masking", "--mask-model", "sam2.1-tiny", "--json"]  # fmt: skip
+    code = main(args)
+    events = _events(job)
+    assert code == 0, [e for e in events if e["type"] in ("job_failed", "log")][-5:]
+    mask_info = json.loads((job / "05_mask" / "mask.json").read_text(encoding="utf-8"))
+    assert mask_info["frames"] == 25
+    dataset = job / "06_sfm" / "dataset"
+    images = {p.stem for p in (dataset / "images").iterdir()}
+    masks = {p.stem for p in (dataset / "masks").iterdir()}
+    assert images and images == masks
+    report = json.loads((job / "08_export" / "report.json").read_text(encoding="utf-8"))
+    assert report["masking"]["frames"] == 25

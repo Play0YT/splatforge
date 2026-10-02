@@ -1,6 +1,6 @@
 [project]
 name = "splatforge"
-version = "0.2.2"
+version = "0.3.0"
 description = "SplatForge Core: Video zu 3D Gaussian Splat (Pipeline und CLI, ohne UI und HTTP)"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -9,6 +9,8 @@ dependencies = [
     "numpy>=2.0,<3",
     "opencv-python-headless>=4.10",
     "pycolmap>=4.2,<5",
+    # Personenmaskierung (Meilenstein 2); läuft im eigenen Prozess. Siehe docs/decisions/0004-maskierung.md
+    "onnxruntime>=1.20",
 ]
 
 [project.optional-dependencies]

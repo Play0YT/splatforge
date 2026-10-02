@@ -12,9 +12,20 @@ GPL/AGPL nur als optionales, separat installierbares Plugin.
 | numpy | 2.x | BSD-3-Clause (plus 0BSD, MIT, Zlib, CC0 für Teile) | Numerik |
 | opencv-python-headless | 5.0 | Apache-2.0 | Bildverarbeitung, Frame-Auswahl |
 | pycolmap | 4.2 | BSD-3-Clause | Kamerapositionen (COLMAP inkl. GLOMAP). Die Wheels enthalten weitere Bibliotheken (u. a. Ceres, Eigen, SQLite); deren Lizenzen liegen den Wheels bei und werden vor dem ersten Release einzeln aufgelistet. |
+| onnxruntime | 1.30 | MIT | Personenmaskierung (Erkennung und Segmentierung) |
+| protobuf, flatbuffers, packaging (Abhängigkeiten von onnxruntime) | – | BSD-3-Clause, Apache-2.0, Apache-2.0/BSD-2-Clause | – |
 | torch (optional, Zusatz `cpu-train`) | 2.x | BSD-3-Clause-Stil (Metadaten: Apache-2.0, BSD-2/3-Clause, BSL-1.0, MIT) | CPU-Trainingsbackend |
 
 Entwicklungswerkzeuge (nicht im Produkt): pytest (MIT), ruff (MIT), mypy (MIT), jsonschema (MIT).
+
+## KI-Modelle (beim ersten Gebrauch heruntergeladen, nicht im Paket)
+
+| Modell | Quelle | Lizenz | Verwendung |
+| --- | --- | --- | --- |
+| RT-DETR R18 (COCO + Objects365) | PekingU/rtdetr_r18vd_coco_o365, ONNX: onnx-community/rtdetr_r18vd_coco_o365 | Apache-2.0 | Personen-/Objekterkennung |
+| SAM 2.1 Hiera Tiny und Small | facebook/sam2.1-hiera-*, ONNX: onnx-community/sam2.1-hiera-*-ONNX | Apache-2.0 | Segmentierung |
+
+Geprüft am 2026-10-02 anhand der Modellkarten. Revisionen und Prüfsummen stehen in `splatforge/models.py`.
 
 ## Externe Programme
 
@@ -35,4 +46,4 @@ Entwicklungswerkzeuge (nicht im Produkt): pytest (MIT), ruff (MIT), mypy (MIT), 
 | --- | --- | --- |
 | plyfile | GPL-3.0 | Eigene PLY-Funktionen in `splatforge/ply.py` |
 | OpenSplat | AGPL-3.0 | Nur als optionales Plugin denkbar |
-| Ultralytics YOLO | AGPL-3.0 | Für Meilenstein 2 wird ein Detektor mit permissiver Lizenz gewählt |
+| Ultralytics YOLO | AGPL-3.0 | Ersetzt durch RT-DETR (Apache-2.0), siehe docs/decisions/0004-maskierung.md |

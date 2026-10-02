@@ -46,6 +46,18 @@ class Mapper(StrEnum):
     INCREMENTAL = "incremental"
 
 
+class MaskMethod(StrEnum):
+    AUTO = "auto"  # mit NVIDIA-GPU Video-Verfolgung, sonst Bildmodell
+    IMAGE = "image"  # SAM 2 als Bildmodell über ONNX, Lücken per Box-Interpolation
+    VIDEO = "video"  # SAM 2 mit Video-Propagation über PyTorch (folgt)
+
+
+class MaskModel(StrEnum):
+    AUTO = "auto"  # Small mit NVIDIA-GPU, sonst Tiny
+    TINY = "sam2.1-tiny"
+    SMALL = "sam2.1-small"
+
+
 class PresetValues(_Model):
     frames: int = Field(gt=0, description="Zielanzahl ausgewählter Frames")
     max_image_edge: int = Field(gt=0, description="Maximale Bildkante in Pixeln")
@@ -128,6 +140,37 @@ class TrainSettings(_Model):
     cpu_log_every: int = Field(default=50, gt=0)
 
 
+class MaskClass(StrEnum):
+    PERSON = "person"
+    VEHICLE = "vehicle"
+    ANIMAL = "animal"
+
+
+class MaskSettings(_Model):
+    method: MaskMethod = MaskMethod.AUTO
+    model: MaskModel = MaskModel.AUTO
+    classes: list[MaskClass] = Field(
+        default_factory=lambda: [MaskClass.PERSON], description="Was maskiert wird", min_length=1
+    )
+    detection_threshold: float = Field(default=0.5, gt=0, lt=1)
+    margin_fraction: float = Field(
+        default=0.015, ge=0, le=0.2, description="Sicherheitsrand (Anteil Bildbreite)"
+    )
+    max_object_fraction: float = Field(
+        default=0.4, gt=0, le=1, description="Bilder mit mehr maskierter Fläche werden ausgeschlossen"
+    )
+    min_usable_fraction: float = Field(
+        default=0.6, gt=0, le=1, description="Warnung, wenn im Mittel weniger Fläche unmaskiert bleibt"
+    )
+    track_min_iou: float = Field(default=0.3, gt=0, le=1)
+    max_gap_frames: int = Field(
+        default=3, ge=0, description="Längste Lücke, die per Interpolation gefüllt wird"
+    )
+    device: str = Field(default="auto", pattern="^(auto|cpu)$")
+    models_dir: Path | None = Field(default=None, description="Eigener Modell-Ordner, sonst Cache")
+    write_overlays: bool = True
+
+
 class ExportSettings(_Model):
     write_spz: bool = Field(default=False, description="Ab Meilenstein 7")
 
@@ -147,7 +190,8 @@ class JobConfig(_Model):
     max_image_edge: int | None = Field(default=None, gt=0, description="Überschreibt das Preset")
     iterations: int | None = Field(default=None, gt=0, description="Überschreibt das Preset")
     camera_type: CameraType = CameraType.AUTO
-    masking: bool = Field(default=False, description="Personenmaskierung (ab Meilenstein 2)")
+    masking: bool = Field(default=False, description="Personen (und weitere Klassen) automatisch maskieren")
+    mask: MaskSettings = MaskSettings()
     tools: ToolSettings = ToolSettings()
     extract: ExtractSettings = ExtractSettings()
     select: SelectSettings = SelectSettings()

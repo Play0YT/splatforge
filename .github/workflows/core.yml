@@ -26,6 +26,9 @@ jobs:
       matrix:
         os: [ubuntu-22.04, ubuntu-24.04, macos-14, windows-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      # Maskierungsmodelle (ca. 240 MB) einmal laden und zwischenspeichern
+      SPLATFORGE_MODELS_DIR: ${{ github.workspace }}/.ci-models
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10.2.0
@@ -43,6 +46,14 @@ jobs:
       - run: uv sync --all-packages --locked
       # Für das CPU-Backend genügt das kleine CPU-Paket von PyTorch (ohne CUDA).
       - run: uv pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Maskierungsmodelle aus dem Zwischenspeicher
+        uses: actions/cache@v6
+        with:
+          path: .ci-models
+          key: mask-models-${{ hashFiles('packages/core/src/splatforge/models.py') }}
+          enableCrossOsArchive: true
+      - name: Maskierungsmodelle laden bzw. prüfen
+        run: uv run --no-sync splatforge models --download rtdetr-r18 sam2.1-tiny
       - name: Unit-Tests
         working-directory: packages/core
         run: uv run --no-sync pytest -m "not integration" -q
