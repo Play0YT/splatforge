@@ -80,3 +80,30 @@ ersten Objektiv ein Winkel von rund 179°).
 Dritter Test mit dem Originalpaar `VID_20220625_140410_00_008.insv` und `…_10_008.insv` (je 3072×3072,
 H.264, 47 s): Paar korrekt erkannt. Die `_10_`-Datei enthält keinen Insta360-Metadatenblock; Metadaten und
 Kalibrierung stehen nur in der `_00_`-Datei (ab 0.2.2 werden sie von dort übernommen).
+
+## 2026-10-02 – Core 0.3.0, Personenmaskierung, Brush 0.3 (Rückmeldung des Projektinhabers)
+
+Gleicher Rechner (Windows 11, 4 CPU-Threads, Intel HD Graphics 630), Park-Video mit durchs Bild laufender
+Person, `--preset preview --masking --backend brush` (192 Kandidaten, 120 ausgewählte Frames, max. 1 280 px,
+7 000 Iterationen). Maskierung mit SAM 2.1 Tiny auf der CPU (onnxruntime, `CPUExecutionProvider`).
+
+| Stufe | Dauer |
+| --- | --- |
+| Analyse, Extraktion, Auswahl | 9 s |
+| Maskierung (120 Bilder) | 302 s ≈ 5 min (2,5 s pro Bild) |
+| Kamerapositionen (global) | 1 052 s ≈ 17,5 min (Merkmale 54 s, Vergleich 456 s, Mapping 531 s), 120/120 verortet |
+| Training (Brush, 7 000 Iterationen) | 3 529 s ≈ 59 min |
+| Gesamt | 4 892 s ≈ 82 min |
+
+Maskierung: Objekte in allen 120 Bildern gefunden, 52 Boxen per Interpolation ergänzt, kein Bild
+ausgeschlossen, im Mittel 3,3 % der Bildfläche maskiert (höchstens 5,5 %). Ergebnis: 194 386 Gaussians,
+PSNR 29,3 dB, SSIM 0,88 (laut Brush). **Die Person ist im Splat nicht mehr zu sehen** (Abnahmekriterium
+Meilenstein 2 erfüllt).
+
+**Folgerungen.**
+- Die Maskierung kostet auf diesem Rechner etwa 5 Minuten zusätzlich; der Richtwert von 3 Sekunden pro Bild
+  im README stimmt.
+- Auffällig lang sind Bildvergleich und Mapping in COLMAP (zusammen rund 16 min). Ansatzpunkt für
+  Meilenstein 4 (Robustheit/Tempo).
+- Das Training mit Brush dauerte länger als beim Lauf ohne Masken (rund 40 min reine Rechenzeit); ob das an
+  den Masken liegt, ist nicht geprüft.
