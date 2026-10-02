@@ -49,6 +49,14 @@ def _parser() -> argparse.ArgumentParser:
     analyze = sub.add_parser("analyze", help="Eingabe prüfen, ohne einen Job anzulegen")
     analyze.add_argument("input", type=Path)
 
+    frames = sub.add_parser(
+        "frames", help="Einzelbilder exportieren (bei 360°/Insta360 pro Objektiv), ohne einen Job zu starten"
+    )
+    frames.add_argument("input", type=Path)
+    frames.add_argument("--out", type=Path, required=True, help="Leerer oder neuer Ordner")
+    frames.add_argument("--count", type=int, default=20, help="Anzahl Bilder pro Objektiv (Standard 20)")
+    frames.add_argument("--max-edge", type=int, default=1920, help="Maximale Bildkante in Pixeln")
+
     hardware = sub.add_parser("hardware", help="Erkannte Hardware und Backends anzeigen")
     _brush_arg(hardware)
 
@@ -149,6 +157,12 @@ def main(argv: list[str] | None = None) -> int:
             return _run_pipeline(job, config, args.json)
         if args.command == "analyze":
             return _analyze(args.input)
+        if args.command == "frames":
+            from .frames import export_frames
+
+            for folder in export_frames(args.input, args.out, args.count, args.max_edge):
+                print(f"{folder}: {len(list(folder.glob('*.jpg')))} Bilder")
+            return 0
         if args.command == "hardware":
             from .adapters import BrushAdapter
             from .hardware import detect
@@ -167,23 +181,16 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _analyze(path: Path) -> int:
-    import tempfile
+    from dataclasses import asdict
 
-    from .stages.analyze import ANALYSIS_FILE, AnalyzeStage
-    from .stages.base import StageContext, Tools
+    from .frames import inspect_input
 
-    config = JobConfig(inputs=[path])
-    with tempfile.TemporaryDirectory() as tmp:
-        job = JobDir(Path(tmp))
-        ctx = StageContext(job=job, config=config, events=EventSink(), tools=Tools.from_config(config))
-        stage = AnalyzeStage()
-        try:
-            stage.run(ctx)
-        except SplatForgeError as exc:
-            print(json.dumps({"ok": False, "message": exc.message, "hint": exc.hint}, ensure_ascii=False))
-            return int(ExitCode.FAILED)
-        result = json.loads((stage.out_dir(ctx) / ANALYSIS_FILE).read_text(encoding="utf-8"))
-    print(json.dumps({"ok": True, **result}, indent=2, ensure_ascii=False))
+    try:
+        info = inspect_input(path)
+    except SplatForgeError as exc:
+        print(json.dumps({"ok": False, "message": exc.message, "hint": exc.hint}, ensure_ascii=False))
+        return int(ExitCode.FAILED)
+    print(json.dumps({"ok": True, "inputs": [asdict(info)]}, indent=2, ensure_ascii=False))
     return 0
 
 

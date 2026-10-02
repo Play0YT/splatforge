@@ -23,6 +23,12 @@ Entwicklungswerkzeuge (nicht im Produkt): pytest (MIT), ruff (MIT), mypy (MIT), 
 | FFmpeg / ffprobe | LGPL-2.1+ (nur LGPL-Build ohne `--enable-gpl` mitliefern) | Wird ab Meilenstein 5 als LGPL-Build mitgeliefert. Bis dahin wird die installierte Version verwendet. |
 | Brush | Apache-2.0 | Trainings-Backend, als Subprozess |
 
+## Übernommenes Wissen (kein Code eingebunden)
+
+| Quelle | Lizenz | Verwendung |
+| --- | --- | --- |
+| telemetry-parser (AdrianEddy) | MIT oder Apache-2.0 | Beschreibung des Insta360-Metadatenformats (.insv-Trailer). SplatForge enthält eine eigene Python-Implementierung. |
+
 ## Bewusst nicht verwendet
 
 | Komponente | Lizenz | Grund / Ersatz |

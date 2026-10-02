@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, fields
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
 from ..config import CameraType
 from ..errors import UnsupportedInputError
 from ..imageio import read_image
+from ..insv import partner_file, read_metadata
 from .base import Stage, StageContext, write_json
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v", ".insv"}
@@ -34,10 +36,60 @@ class InputInfo:
     video_streams: int = 0
     images: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    # Nur bei Dual-Fisheye: wo die beiden Objektive liegen (siehe LensSource)
+    lens_layout: str = ""
+    lenses: list[dict[str, Any]] = field(default_factory=list)
+    insv: dict[str, Any] | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> InputInfo:
-        return cls(**data)
+        # Unbekannte Schlüssel (z. B. aus einer neueren Version) ignorieren, fehlende haben Standardwerte
+        known = {f.name for f in fields(cls)}
+        return cls(**{k: v for k, v in data.items() if k in known})
+
+
+class LensLayout(StrEnum):
+    TWO_STREAMS = "two_streams"  # zwei Videospuren in einer Datei
+    SIDE_BY_SIDE = "side_by_side"  # beide Objektive nebeneinander in einer Spur
+    SPLIT_FILES = "split_files"  # eine Datei pro Objektiv (…_00_… und …_10_…)
+
+
+LAYOUT_NOTES = {
+    LensLayout.TWO_STREAMS: "Beide Objektive als getrennte Videospuren in einer Datei",
+    LensLayout.SIDE_BY_SIDE: "Beide Objektive nebeneinander in einer Videospur",
+    LensLayout.SPLIT_FILES: "Ein Objektiv pro Datei",
+}
+# Ab diesem Seitenverhältnis liegen bei einer einzigen Spur beide Objektive nebeneinander
+SIDE_BY_SIDE_MIN_ASPECT = 1.8
+
+
+def detect_lens_layout(path: Path, streams: list[dict[str, Any]]) -> tuple[LensLayout, Path | None]:
+    main = streams[0]
+    size = (main.get("width"), main.get("height"))
+    if len(streams) >= 2 and (streams[1].get("width"), streams[1].get("height")) == size:
+        return LensLayout.TWO_STREAMS, None
+    width, height = int(main.get("width", 0)), int(main.get("height", 0))
+    if height and width / height >= SIDE_BY_SIDE_MIN_ASPECT:
+        return LensLayout.SIDE_BY_SIDE, None
+    return LensLayout.SPLIT_FILES, partner_file(path)
+
+
+def lens_sources(path: Path, layout: LensLayout, partner: Path | None) -> list[dict[str, Any]]:
+    """Woher die Bilder der beiden Objektive kommen: Datei, Videospur und gegebenenfalls Bildhälfte."""
+    if layout == LensLayout.TWO_STREAMS:
+        return [
+            {"path": str(path), "stream": 0, "crop": None},
+            {"path": str(path), "stream": 1, "crop": None},
+        ]
+    if layout == LensLayout.SIDE_BY_SIDE:
+        return [
+            {"path": str(path), "stream": 0, "crop": "left"},
+            {"path": str(path), "stream": 0, "crop": "right"},
+        ]
+    sources = [{"path": str(path), "stream": 0, "crop": None}]
+    if partner is not None:
+        sources.append({"path": str(partner), "stream": 0, "crop": None})
+    return sources
 
 
 def _rate(value: str | None) -> float:
@@ -89,10 +141,7 @@ def detect_camera_type(path: Path, probe: dict[str, Any]) -> tuple[CameraType, l
     width, height = int(main.get("width", 0)), int(main.get("height", 0))
 
     if path.suffix.lower() == ".insv":
-        if len(streams) >= 2:
-            notes.append("INSV mit zwei Videospuren (je ein Objektiv)")
-        else:
-            notes.append("INSV mit beiden Objektiven in einer Videospur")
+        notes.append("Insta360-Datei: zwei Fisheye-Objektive")
         return CameraType.DUAL_FISHEYE, notes
     if len(streams) >= 2 and all(
         (s.get("width"), s.get("height")) == (main.get("width"), main.get("height")) for s in streams[:2]
@@ -117,8 +166,12 @@ class AnalyzeStage(Stage):
         if any(Path(p).is_file() for p in ctx.config.inputs):
             ctx.tools.ffprobe.check()
 
+    def inspect(self, ctx: StageContext) -> list[InputInfo]:
+        """Untersucht alle Eingaben, ohne etwas abzulehnen (auch für ``splatforge analyze``)."""
+        return [self._analyze_input(ctx, Path(p)) for p in ctx.config.inputs]
+
     def run(self, ctx: StageContext) -> dict[str, Any]:
-        infos = [self._analyze_input(ctx, Path(p)) for p in ctx.config.inputs]
+        infos = self.inspect(ctx)
         kinds = {i.kind for i in infos}
         if len(kinds) > 1:
             raise UnsupportedInputError(
@@ -135,10 +188,10 @@ class AnalyzeStage(Stage):
                 ctx.events.log(note)
             if info.camera_type != CameraType.PERSPECTIVE:
                 raise UnsupportedInputError(
-                    f"{Path(info.path).name} ist eine 360°-Aufnahme ({info.camera_type}). "
-                    "Diese wird in dieser Version noch nicht unterstützt.",
-                    "Ein normales Video verwenden oder, falls die Erkennung falsch ist, den Kameratyp "
-                    "auf 'perspective' setzen.",
+                    f"{Path(info.path).name} ist eine 360°-Aufnahme ({info.camera_type}). Die Datei wird "
+                    "erkannt, die Splat-Berechnung daraus folgt aber erst in einer späteren Version.",
+                    "Mit 'splatforge frames' lassen sich schon die Einzelbilder beider Objektive "
+                    "ansehen. Falls die Erkennung falsch ist, den Kameratyp auf 'perspective' setzen.",
                 )
         out = self.out_dir(ctx)
         write_json(out / ANALYSIS_FILE, {"inputs": [asdict(i) for i in infos]})
@@ -183,6 +236,30 @@ class AnalyzeStage(Stage):
                 f"Dauer oder Bildrate von {path.name} konnte nicht bestimmt werden.",
                 "Die Datei in ein gängiges Format (z. B. MP4 mit H.264) umwandeln.",
             )
+        lens_layout = ""
+        lenses: list[dict[str, Any]] = []
+        insv_meta: dict[str, Any] | None = None
+        if path.suffix.lower() == ".insv":
+            meta = read_metadata(path)
+            if meta is not None:
+                insv_meta = meta.to_dict()
+                if meta.camera_type:
+                    notes.append(f"Kamera: {meta.camera_type} (Firmware {meta.fw_version or '?'})")
+                notes.append(
+                    "Objektiv-Kalibrierung in der Datei gefunden"
+                    if meta.calibration
+                    else "Keine Objektiv-Kalibrierung in der Datei, es werden Standardwerte verwendet"
+                )
+            else:
+                notes.append("Keine Insta360-Metadaten gefunden (Datei evtl. bearbeitet oder exportiert)")
+        if camera_type == CameraType.DUAL_FISHEYE:
+            layout, partner = detect_lens_layout(path, streams)
+            lens_layout, lenses = str(layout), lens_sources(path, layout, partner)
+            notes.append(LAYOUT_NOTES[layout])
+            if layout == LensLayout.SPLIT_FILES and partner is None:
+                notes.append("Die Datei des zweiten Objektivs (…_00_… bzw. …_10_…) fehlt im selben Ordner")
+            if layout == LensLayout.SIDE_BY_SIDE:
+                width //= 2
         return InputInfo(
             path=str(path),
             kind="video",
@@ -198,6 +275,9 @@ class AnalyzeStage(Stage):
             codec=str(main.get("codec_name", "")),
             video_streams=len(streams),
             notes=notes,
+            lens_layout=lens_layout,
+            lenses=lenses,
+            insv=insv_meta,
         )
 
     def _analyze_folder(self, ctx: StageContext, path: Path) -> InputInfo:

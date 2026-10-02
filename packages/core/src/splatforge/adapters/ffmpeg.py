@@ -83,13 +83,19 @@ class FfmpegAdapter(BinaryAdapter):
         on_progress: Callable[[float], None],
         cancel: CancelToken | None,
         stream_index: int = 0,
+        crop_half: str | None = None,
     ) -> None:
         """Extrahiert Frames mit fester Rate, skaliert auf ``max_edge`` und schreibt JPEGs.
 
         FFmpeg dreht Smartphone-Videos anhand der Rotations-Metadaten automatisch (autorotate ist
-        Standard). Skalierung und Tonemapping laufen danach.
+        Standard). Skalierung und Tonemapping laufen danach. ``stream_index`` wählt die Videospur,
+        ``crop_half`` (``"left"``/``"right"``) eine Bildhälfte, z. B. ein Objektiv bei Dual-Fisheye.
         """
         filters = [f"fps={fps:.6f}"]
+        if crop_half is not None:
+            # Beide Objektive nebeneinander in einem Bild: linke oder rechte Hälfte ausschneiden
+            x = "0" if crop_half == "left" else "iw/2"
+            filters.append(f"crop=iw/2:ih:{x}:0")
         if tonemap:
             if not self.has_filter("zscale") or not self.has_filter("tonemap"):
                 raise SplatForgeError(

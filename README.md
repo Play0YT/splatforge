@@ -11,11 +11,12 @@ Geplant sind zwei eigenständige Anwendungen mit gemeinsamem Verarbeitungskern:
 
 | Teil | Version | Stand |
 | --- | --- | --- |
-| [`packages/core`](packages/core) | 0.1.4 | Kommandozeile: Video → Kamerapositionen → Splat (`.ply`) |
+| [`packages/core`](packages/core) | 0.2.0 | Kommandozeile: Video → Kamerapositionen → Splat (`.ply`) |
 | [`packages/job-schema`](packages/job-schema) | 0.1.0 | JSON-Schemas für Job-Konfiguration und Events |
 | `packages/ui-components`, `apps/*` | – | noch nicht begonnen |
 
-Noch nicht enthalten: Personenmaskierung, 360°/Insta360, Desktop-App, Server. Änderungen pro Version stehen
+Insta360-Dateien (`.insv`) werden gelesen und lassen sich als Einzelbilder pro Objektiv exportieren; ein
+Splat aus 360°-Material folgt noch. Ebenfalls noch nicht enthalten: Personenmaskierung, Desktop-App, Server. Änderungen pro Version stehen
 im `CHANGELOG.md` des jeweiligen Pakets.
 
 ## Lokal ausprobieren
@@ -100,6 +101,19 @@ uv run splatforge run ~/Videos/mein_video.mp4 --preset preview --out ~/splatforg
 
 **Gutes Testvideo:** 20 bis 60 Sekunden, langsam um einen Gegenstand mit viel Struktur herumgehen
 (Pflanze, Schuh, Sofa), nicht nur schwenken. Mehr Tipps in [`docs/capture-guide.md`](docs/capture-guide.md).
+
+## Insta360-Dateien (.insv) ansehen
+
+SplatForge erkennt `.insv`-Dateien und liest Kameramodell und Objektiv-Kalibrierung. Die Berechnung eines
+Splats aus 360°-Aufnahmen folgt noch; die Einzelbilder beider Objektive lassen sich aber schon exportieren:
+
+```
+uv run splatforge analyze <datei>.insv
+uv run splatforge frames <datei>.insv --out <neuer-ordner> --count 20
+```
+
+Danach liegen die Bilder in `<neuer-ordner>/objektiv_1` und `objektiv_2`. Nimmt die Kamera pro Objektiv eine
+eigene Datei auf (Namen mit `_00_` und `_10_`), müssen beide im selben Ordner liegen.
 
 ## Training mit Grafikkarte (Brush)
 

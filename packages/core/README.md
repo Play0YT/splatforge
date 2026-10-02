@@ -22,6 +22,7 @@ splatforge run video.mp4 --preset preview --out ./ergebnis
 splatforge resume ./ergebnis           # nach Abbruch (Strg+C) oder Absturz fortsetzen
 splatforge analyze video.mp4           # Eingabe prüfen
 splatforge hardware                    # erkannte Hardware und Backends
+splatforge frames aufnahme.insv --out ./bilder   # Einzelbilder, bei 360° pro Objektiv
 ```
 
 Wichtige Optionen von `run`: `--frames`, `--max-edge`, `--iterations`, `--backend auto|brush|cpu`,

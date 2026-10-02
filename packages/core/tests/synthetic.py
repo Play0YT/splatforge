@@ -7,6 +7,7 @@ rekonstruieren. So braucht das Repository keine Videodateien mit unklarer Lizenz
 
 from __future__ import annotations
 
+import struct
 import subprocess
 from pathlib import Path
 
@@ -104,4 +105,93 @@ def make_video(path: Path, frames: int = 120, width: int = 480, height: int = 27
     for p in frame_dir.iterdir():
         p.unlink()
     frame_dir.rmdir()
+    return path
+
+
+# --- Insta360 (.insv) -------------------------------------------------------------------------------
+# Nachbau des Insta360-Formats nach telemetry-parser (MIT/Apache-2.0): MP4 plus Trailer am Dateiende.
+
+INSV_MAGIC = b"8db42d694ccc418790edff439fe026bf"
+
+
+def _pb_varint(value: int) -> bytes:
+    out = bytearray()
+    while True:
+        byte = value & 0x7F
+        value >>= 7
+        if value:
+            out.append(byte | 0x80)
+        else:
+            out.append(byte)
+            return bytes(out)
+
+
+def _pb_field(number: int, value: int | str | bytes) -> bytes:
+    if isinstance(value, int):
+        return _pb_varint(number << 3) + _pb_varint(value)
+    data = value.encode() if isinstance(value, str) else value
+    return _pb_varint(number << 3 | 2) + _pb_varint(len(data)) + data
+
+
+def insv_metadata(camera: str = "Insta360 X4", calibration: bool = True) -> bytes:
+    """Protobuf-Metadaten wie im Insta360-Trailer (Datensatz 1)."""
+    msg = _pb_field(1, "IXSE00TEST") + _pb_field(2, camera) + _pb_field(3, "v1.2.3")
+    msg += _pb_field(19, _pb_field(1, 2880) + _pb_field(2, 2880)) + _pb_field(20, 30)
+    msg += _pb_field(26, _pb_field(1, 0) + _pb_field(2, 1) + _pb_field(4, 2))
+    if calibration:
+        msg += _pb_field(5, "2_1440.0_1440.0_0.0_0.0_0.0_1440.0_1440.0_180.0_0.0_0.0_2880_2880_1")
+        msg += _pb_field(54, "_".join(str(float(i)) for i in range(24)))
+    return msg
+
+
+def insv_trailer(records: dict[int, tuple[int, bytes]], with_offsets: bool = False) -> bytes:
+    """Baut den Trailer. ``records``: {ID: (Format, Daten)}."""
+    body = bytearray()
+    table = bytearray()
+    for rec_id, (fmt, data) in records.items():
+        offset = len(body)
+        body += data + struct.pack("<BBI", fmt, rec_id, len(data))
+        table += struct.pack("<BBII", rec_id, fmt, len(data), offset)
+    if with_offsets:
+        body += bytes(table) + struct.pack("<BBI", 0, 0, len(table))
+    extra_size = len(body) + 32 + 4 + 4 + len(INSV_MAGIC)
+    return bytes(body) + bytes(32) + struct.pack("<II", extra_size, 3) + INSV_MAGIC
+
+
+def make_insv(
+    path: Path,
+    layout: str = "two_streams",
+    lens_size: int = 320,
+    seconds: float = 2.0,
+    trailer: bytes | None = None,
+) -> Path:
+    """Schreibt eine kleine .insv-Datei. ``layout``: two_streams, side_by_side oder single."""
+    common = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y"]
+    src = f"testsrc2=size={lens_size}x{lens_size}:rate=24:duration={seconds}"
+    src2 = f"mandelbrot=size={lens_size}x{lens_size}:rate=24"
+    enc = ["-c:v", "libx264", "-pix_fmt", "yuv420p", "-t", str(seconds), "-f", "mp4"]
+    if layout == "two_streams":
+        args = [*common, "-f", "lavfi", "-i", src, "-f", "lavfi", "-i", src2, "-map", "0", "-map", "1", *enc]
+    elif layout == "side_by_side":
+        args = [
+            *common,
+            "-f",
+            "lavfi",
+            "-i",
+            src,
+            "-f",
+            "lavfi",
+            "-i",
+            src2,
+            "-filter_complex",
+            "[0][1]hstack",
+            *enc,
+        ]
+    else:
+        args = [*common, "-f", "lavfi", "-i", src, *enc]
+    subprocess.run([*args, str(path)], check=True)
+    if trailer is None:
+        trailer = insv_trailer({1: (1, insv_metadata())})
+    with path.open("ab") as fh:
+        fh.write(trailer)
     return path

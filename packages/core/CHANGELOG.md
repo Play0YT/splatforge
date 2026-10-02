@@ -2,6 +2,26 @@
 
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionen nach [SemVer](https://semver.org/lang/de/).
 
+## [0.2.0] – 2026-10-02
+
+### Hinzugefügt
+- Insta360-Dateien (`.insv`) lesen: Kameramodell, Seriennummer, Firmware, Auflösung und
+  Objektiv-Kalibrierung aus dem Insta360-Metadatenblock am Dateiende (eigener Leser, keine neue
+  Abhängigkeit; Format nach telemetry-parser, MIT/Apache-2.0).
+- Erkennung, wo die beiden Objektive liegen: zwei Videospuren, nebeneinander in einer Spur oder eine
+  Datei pro Objektiv (`…_00_…` und `…_10_…`, die zweite Datei wird im selben Ordner gesucht).
+- Befehl `splatforge frames <video> --out <ordner>`: exportiert Einzelbilder, bei 360°/Insta360 getrennt
+  pro Objektiv (`objektiv_1`, `objektiv_2`). Schreibt nur in leere oder neue Ordner.
+- `splatforge analyze` zeigt diese Angaben auch für 360°-Dateien an (bisher brach es dort ab).
+
+### Geändert
+- `splatforge run` mit einer 360°-Datei bricht weiterhin ab, nennt aber jetzt `splatforge frames` als
+  Möglichkeit, die Aufnahme schon anzusehen. Die Splat-Berechnung aus 360°-Material folgt in Meilenstein 3.
+- `analysis.json` enthält neue Felder (`lens_layout`, `lenses`, `insv`). Ältere Dateien ohne diese Felder
+  werden weiterhin gelesen, unbekannte Felder aus neueren Versionen ignoriert.
+- Der Release-Workflow lässt sich unter „Actions“ auch manuell mit einer Versionsangabe starten und legt
+  den Tag dann selbst an.
+
 ## [0.1.4] – 2026-10-02
 
 ### Behoben
