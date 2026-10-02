@@ -1,10 +1,16 @@
 name: Release Core
 
-# Ein Tag der Form core-v<Version> (z. B. core-v0.1.3) erstellt ein GitHub-Release mit dem
-# Changelog-Abschnitt dieser Version und dem gebauten Python-Paket.
+# Erstellt ein GitHub-Release mit dem Changelog seit dem letzten Release und dem gebauten Python-Paket.
+# Auslöser: ein Tag core-v<Version> oder manuell unter "Actions" mit der Version (z. B. 0.1.4);
+# im manuellen Fall legt der Workflow den Tag selbst auf dem gewählten Commit an.
 on:
   push:
     tags: ["core-v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version aus packages/core/pyproject.toml, z. B. 0.1.4"
+        required: true
 
 permissions:
   contents: write
@@ -19,14 +25,17 @@ jobs:
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           python-version: "3.11"
-      - name: Version prüfen und Release-Text erzeugen
+      - name: Tag bestimmen
         env:
-          TAG: ${{ github.ref_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then echo "TAG=${GITHUB_REF_NAME}" >> "$GITHUB_ENV"
+          else echo "TAG=core-v${INPUT_VERSION}" >> "$GITHUB_ENV"; fi
+      - name: Version prüfen und Release-Text erzeugen
         run: uv run --no-project python .github/scripts/release_notes.py "$TAG" packages/core > notes.md
       - name: Paket bauen
         run: uv build --package splatforge --out-dir dist
       - name: Release erstellen
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: gh release create "$TAG" dist/* --title "SplatForge Core ${TAG#core-v}" --notes-file notes.md
+        run: gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "SplatForge Core ${TAG#core-v}" --notes-file notes.md
