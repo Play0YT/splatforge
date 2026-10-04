@@ -264,3 +264,63 @@ def original_files(path: Path) -> list[Path]:
         re.IGNORECASE,
     )
     return sorted(p for p in path.parent.iterdir() if original.match(p.name))
+
+
+# offset_v3: Anzahl Objektive, dann pro Objektiv 19 Werte, am Ende ein Kennwert. Reihenfolge pro Objektiv
+# (nach telemetry-parser): xi fx fy cx cy yaw pitch roll tx ty tz k1 k2 k3 p1 p2 Breite Höhe Linsentyp.
+# Breite/Höhe beschreiben das Referenzbild mit beiden Objektiven nebeneinander (z. B. 6528×3264 bei der
+# ONE RS); cx des zweiten Objektivs zählt ab dessen linkem Rand im Referenzbild.
+LENS_VALUES = 19
+# Plausibilitätsgrenze: Der Bildmittelpunkt muss nahe der Bildmitte liegen, sonst gilt die Kalibrierung als
+# nicht verstanden (z. B. anderes Format bei neueren Modellen) und es werden Ersatzwerte verwendet.
+MAX_CENTER_OFFSET = 0.2
+
+
+@dataclass
+class LensCalibration:
+    """Werkskalibrierung eines Objektivs, bezogen auf ein Objektivbild von ``width`` × ``height``."""
+
+    xi: float
+    fx: float
+    fy: float
+    cx: float
+    cy: float
+    yaw: float
+    pitch: float
+    roll: float
+    k1: float
+    k2: float
+    k3: float
+    p1: float
+    p2: float
+    width: float
+    height: float
+
+
+def lens_calibrations(meta: InsvMetadata) -> list[LensCalibration] | None:
+    """Liest die Objektiv-Kalibrierung aus ``offset_v3``. ``None``, wenn sie fehlt oder unplausibel ist."""
+    values = meta.offset_v3
+    if len(values) < 1 + LENS_VALUES:
+        return None
+    count = int(values[0])
+    if count < 1 or len(values) < 1 + count * LENS_VALUES:
+        return None
+    lenses = []
+    for i in range(count):
+        v = values[1 + i * LENS_VALUES : 1 + (i + 1) * LENS_VALUES]
+        xi, fx, fy, cx, cy, yaw, pitch, roll = v[0:8]
+        k1, k2, k3, p1, p2, ref_width, ref_height = v[11:18]
+        lens_width = ref_width / count
+        if cx >= lens_width:
+            cx -= lens_width * int(cx // lens_width)
+        if not (
+            fx > 0
+            and fy > 0
+            and abs(cx / lens_width - 0.5) < MAX_CENTER_OFFSET
+            and abs(cy / ref_height - 0.5) < MAX_CENTER_OFFSET
+        ):
+            return None
+        lenses.append(
+            LensCalibration(xi, fx, fy, cx, cy, yaw, pitch, roll, k1, k2, k3, p1, p2, lens_width, ref_height)
+        )
+    return lenses

@@ -2,6 +2,45 @@
 
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionen nach [SemVer](https://semver.org/lang/de/).
 
+## [0.4.0] – 2026-10-04
+
+### Hinzugefügt
+- 360°-Aufnahmen (Meilenstein 3): Equirektanguläre Videos (z. B. Export aus Insta360 Studio) und
+  Insta360-Dateien (`.insv`) werden zu Splats verarbeitet. Neue Stufe 4 (`04_360`) zerlegt jeden
+  ausgewählten Zeitpunkt in normale Perspektiv-Ansichten:
+  - equirektangulär: 8 Ansichten rund um den Horizont plus oben und unten, je 90° Sichtfeld;
+  - Dual-Fisheye (.insv): pro Objektiv eine Ansicht geradeaus und vier um 50° geneigte, berechnet mit der
+    Werkskalibrierung aus der Datei (Unified-Modell mit Verzerrung und Sensorlage); ohne Kalibrierung
+    Näherungswerte und eine Warnung. Unterstützt werden zwei Videospuren, beide Objektive nebeneinander und
+    eine Datei pro Objektiv (`_00_`/`_10_`).
+  - Auflösung der Ansichten automatisch nach der Quelle, höchstens die maximale Bildkante des Presets.
+- COLMAP berechnet die Ansichten eines Zeitpunkts als starres Kamera-Rig mit exakt bekannten Brennweiten
+  und Drehungen; bei Dual-Fisheye verfeinert COLMAP die Lage der Objektive zueinander.
+- Nadir-Maske: Der Bereich direkt unter der Kamera (Stick, Hand) wird ausgeblendet (Standard 30°).
+  Ausserhalb des Fisheye-Bildkreises wird ebenfalls nichts verwendet.
+- Personenmaskierung auf den Ansichten, pro Ansicht über die Zeit verfolgt, mit Abgleich über die
+  Ansichtsgrenzen: Eine Person am Rand einer Ansicht wird auch in der Nachbaransicht ausgeblendet.
+- Neuer Abschnitt `pano` in der Job-Konfiguration (Anzahl, Sichtfeld und Grösse der Ansichten,
+  Nadir-Bereich, Anteil der Zeitpunkte, Vergleichsumfang, Merkmale pro Ansicht).
+- Option `--camera-type` für `splatforge run`, falls die Erkennung danebenliegt.
+
+### Geändert
+- Bei 360° wählt SplatForge halb so viele Zeitpunkte wie das Preset vorsieht (`pano.frame_share`), weil
+  jeder Zeitpunkt 10 Bilder liefert. Mit `--frames` lässt sich die Zahl weiterhin genau festlegen.
+- Im Datensatz für das Training heissen die Ansichten `v00_<frame>.jpg` usw. (flach, ohne Unterordner),
+  passend dazu die Masken `masks/v00_<frame>.png`.
+- Die Pipeline entscheidet vor jeder Stufe neu, ob sie läuft (die 360°-Stufe hängt vom Ergebnis der
+  Analyse ab). Dadurch kann sich `stage_count` in den Events nach der Analyse um eins erhöhen.
+- Normale Videos und 360°-Aufnahmen lassen sich nicht im selben Job mischen.
+- COLMAP-Meldungen beim Anlegen des Rigs landen im COLMAP-Log statt in der Ausgabe.
+
+### Hinweise
+- Keine Migration nötig: Der Abschnitt `pano` hat Standardwerte; normale Jobs laufen unverändert.
+- Siehe docs/decisions/0005-360-ansichten.md: Dual-Fisheye läuft über Perspektiv-Ansichten aus der
+  Werkskalibrierung statt über das COLMAP-Fisheye-Modell (Abweichung von „Weg A“ der Spezifikation).
+- Geprüft mit synthetischen Aufnahmen und der Kalibrierung einer echten Insta360 ONE RS; Aufnahmen einer
+  X4 stehen noch aus.
+
 ## [0.3.1] – 2026-10-04
 
 ### Behoben

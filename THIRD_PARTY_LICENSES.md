@@ -38,7 +38,9 @@ Geprüft am 2026-10-02 anhand der Modellkarten. Revisionen und Prüfsummen stehe
 
 | Quelle | Lizenz | Verwendung |
 | --- | --- | --- |
-| telemetry-parser (AdrianEddy) | MIT oder Apache-2.0 | Beschreibung des Insta360-Metadatenformats (.insv-Trailer). SplatForge enthält eine eigene Python-Implementierung. |
+| telemetry-parser (AdrianEddy) | MIT oder Apache-2.0 | Beschreibung des Insta360-Metadatenformats (.insv-Trailer) und des Aufbaus der Objektiv-Kalibrierung (`offset_v3`). SplatForge enthält eine eigene Python-Implementierung. |
+| COLMAP (Beispiel `panorama_sfm.py`) | BSD-3-Clause | Vorgehen für 360°: Perspektiv-Ansichten als Kamera-Rig. Eigene Umsetzung. |
+| nerfstudio (`auto_orient_and_center_poses`) | Apache-2.0 | Idee für die Richtung „oben“ aus den Kameraachsen. Eigene Umsetzung. |
 
 ## Bewusst nicht verwendet
 

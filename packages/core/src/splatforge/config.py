@@ -179,6 +179,36 @@ class MaskSettings(_Model):
     write_overlays: bool = True
 
 
+class PanoSettings(_Model):
+    """360°-Material: Zerlegung in Perspektiv-Ansichten (siehe panorama.py)."""
+
+    views: int = Field(default=8, ge=3, le=16, description="Ansichten rund um den Horizont (equirektangulär)")
+    fov_deg: float = Field(default=90.0, ge=60, le=120, description="Sichtfeld jeder Ansicht")
+    up_down: bool = Field(default=True, description="Zusätzlich je eine Ansicht nach oben und unten")
+    view_size: int = Field(
+        default=0, ge=0, description="Kantenlänge der Ansichten in Pixeln, 0 = automatisch (Quellauflösung)"
+    )
+    fisheye_tilt_deg: float = Field(
+        default=50.0, ge=20, le=70, description="Dual-Fisheye: Neigung der vier Randansichten pro Objektiv"
+    )
+    nadir_mask_deg: float = Field(
+        default=30.0, ge=0, le=90, description="Bereich um den Nadir (Stick, Hand) ausblenden, 0 = aus"
+    )
+    share_masks: bool = Field(default=True, description="Masken über die Ansichtsgrenzen abgleichen")
+    frame_share: float = Field(
+        default=0.5,
+        gt=0,
+        le=1,
+        description="Anteil der Frames des Presets; jeder Zeitpunkt liefert ohnehin mehrere Ansichten",
+    )
+    max_source_edge: int = Field(default=7680, gt=0, description="Höchstauflösung beim Auslesen der Quelle")
+    matching_overlap: int = Field(default=3, gt=0, description="Zeitpunkte, mit denen jeder verglichen wird")
+    max_features: int = Field(default=4096, gt=0, description="SIFT-Merkmale pro Ansicht")
+    refine_lens_rig: bool = Field(
+        default=True, description="Dual-Fisheye: Lage der Objektive zueinander von COLMAP verfeinern lassen"
+    )
+
+
 class ExportSettings(_Model):
     write_spz: bool = Field(default=False, description="Ab Meilenstein 7")
 
@@ -204,6 +234,7 @@ class JobConfig(_Model):
     extract: ExtractSettings = ExtractSettings()
     select: SelectSettings = SelectSettings()
     sfm: SfmSettings = SfmSettings()
+    pano: PanoSettings = PanoSettings()
     train: TrainSettings = TrainSettings()
     export: ExportSettings = ExportSettings()
     resources: ResourceSettings = ResourceSettings()

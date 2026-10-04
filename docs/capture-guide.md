@@ -12,3 +12,13 @@
 - **Bewegte Objekte vermeiden.** Personen lassen sich mit `--masking` automatisch ausblenden; andere
   bewegte Dinge (Bäume im Wind, Wasser) stören weiterhin.
 - **Hohe Bildrate, kurze Belichtungszeit.** Weniger Bewegungsunschärfe heisst mehr brauchbare Frames.
+
+## 360°-Kameras (z. B. Insta360)
+
+- **Kamera am Stick über dem Kopf**, Stick möglichst senkrecht. Der Bereich direkt darunter (Stick, Hand)
+  wird automatisch ausgeblendet; mit `--masking` auch du selbst.
+- **Gehen, nicht drehen.** Auch bei 360° braucht es verschiedene Standpunkte: einmal langsam um ein Haus
+  oder einen Baum gehen, durch einen Raum oder einen Weg entlang, gern in Schleifen.
+- **Langsam und gleichmässig**, etwa Schritttempo oder langsamer. Schnelle Drehungen machen Bewegungsunschärfe.
+- **Am besten als 360°-Video aus Insta360 Studio exportieren** (equirektangulär, höchste Auflösung,
+  Horizont-Ausrichtung an). Die rohe .insv-Datei geht auch, hängt aber von der Kalibrierung in der Datei ab.

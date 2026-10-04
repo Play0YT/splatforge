@@ -17,6 +17,7 @@ from .stages.base import Stage, StageContext, Tools
 from .stages.export import ExportStage, write_report
 from .stages.extract import ExtractStage
 from .stages.mask import MaskStage
+from .stages.pano import PanoStage
 from .stages.select import SelectStage
 from .stages.sfm import SfmStage
 from .stages.train import TrainStage
@@ -32,11 +33,11 @@ class ExitCode(IntEnum):
 
 
 def default_stages() -> list[Stage]:
-    # Stufe 4 (360°-Aufbereitung) folgt mit Meilenstein 3.
     return [
         AnalyzeStage(),
         ExtractStage(),
         SelectStage(),
+        PanoStage(),
         MaskStage(),
         SfmStage(),
         TrainStage(),
@@ -86,7 +87,14 @@ class Pipeline:
             for stage in active:
                 if not stage.is_done(ctx):
                     stage.preflight(ctx)
-            for index, stage in enumerate(active):
+            for stage in self.stages:
+                # Ob eine Stufe läuft, kann vom Ergebnis früherer Stufen abhängen (z. B. die
+                # 360°-Aufbereitung von der Analyse): deshalb vor jeder Stufe neu bestimmen.
+                active = [s for s in self.stages if s.applies(ctx)]
+                if stage not in active:
+                    continue
+                total_weight = sum(s.weight for s in active) or 1.0
+                index = active.index(stage)
                 events.stage, events.stage_index, events.stage_count = stage.name, index, len(active)
                 events.stage_weight_done = done_weight / total_weight
                 events.stage_weight = stage.weight / total_weight

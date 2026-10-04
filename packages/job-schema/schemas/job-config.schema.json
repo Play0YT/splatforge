@@ -180,6 +180,100 @@
       "title": "MaskSettings",
       "type": "object"
     },
+    "PanoSettings": {
+      "additionalProperties": false,
+      "description": "360°-Material: Zerlegung in Perspektiv-Ansichten (siehe panorama.py).",
+      "properties": {
+        "views": {
+          "default": 8,
+          "description": "Ansichten rund um den Horizont (equirektangulär)",
+          "maximum": 16,
+          "minimum": 3,
+          "title": "Views",
+          "type": "integer"
+        },
+        "fov_deg": {
+          "default": 90.0,
+          "description": "Sichtfeld jeder Ansicht",
+          "maximum": 120,
+          "minimum": 60,
+          "title": "Fov Deg",
+          "type": "number"
+        },
+        "up_down": {
+          "default": true,
+          "description": "Zusätzlich je eine Ansicht nach oben und unten",
+          "title": "Up Down",
+          "type": "boolean"
+        },
+        "view_size": {
+          "default": 0,
+          "description": "Kantenlänge der Ansichten in Pixeln, 0 = automatisch (Quellauflösung)",
+          "minimum": 0,
+          "title": "View Size",
+          "type": "integer"
+        },
+        "fisheye_tilt_deg": {
+          "default": 50.0,
+          "description": "Dual-Fisheye: Neigung der vier Randansichten pro Objektiv",
+          "maximum": 70,
+          "minimum": 20,
+          "title": "Fisheye Tilt Deg",
+          "type": "number"
+        },
+        "nadir_mask_deg": {
+          "default": 30.0,
+          "description": "Bereich um den Nadir (Stick, Hand) ausblenden, 0 = aus",
+          "maximum": 90,
+          "minimum": 0,
+          "title": "Nadir Mask Deg",
+          "type": "number"
+        },
+        "share_masks": {
+          "default": true,
+          "description": "Masken über die Ansichtsgrenzen abgleichen",
+          "title": "Share Masks",
+          "type": "boolean"
+        },
+        "frame_share": {
+          "default": 0.5,
+          "description": "Anteil der Frames des Presets; jeder Zeitpunkt liefert ohnehin mehrere Ansichten",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "title": "Frame Share",
+          "type": "number"
+        },
+        "max_source_edge": {
+          "default": 7680,
+          "description": "Höchstauflösung beim Auslesen der Quelle",
+          "exclusiveMinimum": 0,
+          "title": "Max Source Edge",
+          "type": "integer"
+        },
+        "matching_overlap": {
+          "default": 3,
+          "description": "Zeitpunkte, mit denen jeder verglichen wird",
+          "exclusiveMinimum": 0,
+          "title": "Matching Overlap",
+          "type": "integer"
+        },
+        "max_features": {
+          "default": 4096,
+          "description": "SIFT-Merkmale pro Ansicht",
+          "exclusiveMinimum": 0,
+          "title": "Max Features",
+          "type": "integer"
+        },
+        "refine_lens_rig": {
+          "default": true,
+          "description": "Dual-Fisheye: Lage der Objektive zueinander von COLMAP verfeinern lassen",
+          "title": "Refine Lens Rig",
+          "type": "boolean"
+        }
+      },
+      "title": "PanoSettings",
+      "type": "object"
+    },
     "Preset": {
       "enum": [
         "preview",
@@ -627,6 +721,23 @@
         "weak_pair_inliers": 30,
         "orient_scene": true,
         "min_baseline_ratio": 0.1
+      }
+    },
+    "pano": {
+      "$ref": "#/$defs/PanoSettings",
+      "default": {
+        "views": 8,
+        "fov_deg": 90.0,
+        "up_down": true,
+        "view_size": 0,
+        "fisheye_tilt_deg": 50.0,
+        "nadir_mask_deg": 30.0,
+        "share_masks": true,
+        "frame_share": 0.5,
+        "max_source_edge": 7680,
+        "matching_overlap": 3,
+        "max_features": 4096,
+        "refine_lens_rig": true
       }
     },
     "train": {

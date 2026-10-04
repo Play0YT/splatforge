@@ -16,7 +16,7 @@ from typing import Any
 
 from . import __version__
 from .adapters import CancelToken
-from .config import JobConfig, MaskMethod, MaskModel, Preset, TrainBackend
+from .config import CameraType, JobConfig, MaskMethod, MaskModel, Preset, TrainBackend
 from .errors import SplatForgeError
 from .events import EventSink
 from .job import JobDir
@@ -38,6 +38,11 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--iterations", type=int, help="Trainings-Iterationen")
     run.add_argument("--backend", choices=[b.value for b in TrainBackend], help="Trainings-Backend")
     run.add_argument("--threads", type=int, help="Anzahl CPU-Threads (0 = alle)")
+    run.add_argument(
+        "--camera-type",
+        choices=[c.value for c in CameraType],
+        help="Kameratyp erzwingen, falls die Erkennung falsch liegt (Standard: auto)",
+    )
     run.add_argument("--masking", action="store_true", help="Personen automatisch erkennen und ausblenden")
     run.add_argument(
         "--mask-method",
@@ -115,6 +120,8 @@ def _load_config(args: argparse.Namespace) -> JobConfig:
         data.setdefault("tools", {})["brush"] = str(args.brush)
     if args.threads is not None:
         data.setdefault("resources", {})["num_threads"] = args.threads
+    if args.camera_type:
+        data["camera_type"] = args.camera_type
     if args.masking:
         data["masking"] = True
     mask = data.setdefault("mask", {})

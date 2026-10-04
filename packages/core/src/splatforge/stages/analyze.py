@@ -10,8 +10,15 @@ from typing import Any
 from ..config import CameraType
 from ..errors import UnsupportedInputError
 from ..imageio import read_image
-from ..insv import is_preview_file, original_files, partner_file, read_metadata
-from .base import Stage, StageContext, write_json
+from ..insv import (
+    InsvMetadata,
+    is_preview_file,
+    lens_calibrations,
+    original_files,
+    partner_file,
+    read_metadata,
+)
+from .base import Stage, StageContext, read_json, write_json
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v", ".insv"}
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".tif", ".tiff", ".webp"}
@@ -187,16 +194,42 @@ class AnalyzeStage(Stage):
             )
             for note in info.notes:
                 ctx.events.log(note)
-            if info.camera_type != CameraType.PERSPECTIVE:
-                raise UnsupportedInputError(
-                    f"{Path(info.path).name} ist eine 360°-Aufnahme ({info.camera_type}). Die Datei wird "
-                    "erkannt, die Splat-Berechnung daraus folgt aber erst in einer späteren Version.",
-                    "Mit 'splatforge frames' lassen sich schon die Einzelbilder beider Objektive "
-                    "ansehen. Falls die Erkennung falsch ist, den Kameratyp auf 'perspective' setzen.",
-                )
+            self._check_360(ctx, info)
+        types = {i.camera_type for i in infos}
+        if len(types) > 1:
+            raise UnsupportedInputError(
+                "Normale Videos und 360°-Aufnahmen können nicht im selben Job gemischt werden.",
+                "Für jede Art einen eigenen Job starten.",
+            )
         out = self.out_dir(ctx)
         write_json(out / ANALYSIS_FILE, {"inputs": [asdict(i) for i in infos]})
         return {"inputs": len(infos)}
+
+    def _check_360(self, ctx: StageContext, info: InputInfo) -> None:
+        name = Path(info.path).name
+        if info.camera_type == CameraType.DUAL_FISHEYE:
+            if info.kind != "video":
+                raise UnsupportedInputError(
+                    "Bildordner mit Fisheye-Bildern werden nicht unterstützt.",
+                    "Das Video (.insv) direkt angeben oder in Insta360 Studio als 360°-Video exportieren.",
+                )
+            if len(info.lenses) < 2:
+                raise UnsupportedInputError(
+                    f"Zu {name} fehlt die Datei des zweiten Objektivs.",
+                    "Beide Dateien (Namen mit _00_ und _10_) in denselben Ordner legen und erneut starten.",
+                )
+            if not (info.insv and lens_calibrations(InsvMetadata(offset_v3=info.insv.get("offset_v3", [])))):
+                ctx.warn(
+                    f"{name}: Keine verwertbare Objektiv-Kalibrierung gefunden, es werden Näherungswerte "
+                    "verwendet. Das Ergebnis kann ungenau werden.",
+                    "Zuverlässiger: die Aufnahme in Insta360 Studio als 360°-Video (equirektangulär) "
+                    "exportieren.",
+                )
+        if is_preview_file(Path(info.path)):
+            ctx.warn(
+                f"{name} ist eine Vorschaudatei in niedriger Auflösung; der Splat wird unscharf.",
+                "Die Originaldateien (VID_…) verwenden.",
+            )
 
     def _analyze_input(self, ctx: StageContext, path: Path) -> InputInfo:
         if not path.exists():
@@ -318,3 +351,26 @@ class AnalyzeStage(Stage):
             frame_count=len(images),
             images=images,
         )
+
+
+def load_inputs(ctx: StageContext) -> list[InputInfo]:
+    data = read_json(ctx.job.stage_dir(AnalyzeStage.dirname) / ANALYSIS_FILE)
+    return [InputInfo.from_dict(d) for d in data["inputs"]]
+
+
+def panorama_type(ctx: StageContext) -> CameraType | None:
+    """Art des 360°-Materials dieses Jobs, ``None`` bei normalen Aufnahmen."""
+    path = ctx.job.stage_dir(AnalyzeStage.dirname) / ANALYSIS_FILE
+    if not path.is_file():
+        return None
+    kind = CameraType(load_inputs(ctx)[0].camera_type)
+    return None if kind == CameraType.PERSPECTIVE else kind
+
+
+def target_frames(ctx: StageContext) -> int:
+    """Anzahl auszuwählender Zeitpunkte. Bei 360° liefert jeder Zeitpunkt mehrere Ansichten, deshalb nur
+    ein Anteil des Presets (ausser die Anzahl wurde ausdrücklich gesetzt)."""
+    frames = ctx.config.effective().frames
+    if panorama_type(ctx) is not None and ctx.config.frames is None:
+        frames = max(ctx.config.select.min_selected_frames, round(frames * ctx.config.pano.frame_share))
+    return frames

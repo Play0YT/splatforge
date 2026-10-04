@@ -16,6 +16,7 @@ from ..imageio import read_image, write_image
 from ..orient import baseline_ratio, orientation
 from .base import Stage, StageContext, write_json
 from .mask import MaskStage, excluded_images
+from .pano import PanoStage, images_root, read_rig, rig_views, view_image_names
 from .select import IMAGES_DIR, SelectStage
 
 DATASET_DIR = "dataset"
@@ -62,24 +63,47 @@ class SfmStage(Stage):
         out = self.out_dir(ctx)
         out.mkdir(parents=True, exist_ok=True)
         colmap.log_file = out / "colmap.log"
-        images = ctx.job.stage_dir(SelectStage.dirname) / IMAGES_DIR
         database = out / "database.db"
-        masks = self._masks_dir(ctx)
-        excluded = excluded_images(ctx) if masks is not None else set()
-        names = sorted(p.name for p in images.iterdir() if p.name not in excluded)
+        if database.exists():
+            database.unlink()  # Reste eines abgebrochenen Laufs
+        rig = read_rig(ctx)
+        masks = self._masks_dir(ctx, rig)
         timings: dict[str, float] = {}
-
         start = time.monotonic()
         ctx.events.progress(0.0, message="Merkmale suchen")
-        colmap.extract_features(
-            database,
-            images,
-            settings.camera_model,
-            settings.single_camera,
-            masks,
-            threads,
-            image_names=names if excluded else None,
-        )
+        if rig is None:
+            images = ctx.job.stage_dir(SelectStage.dirname) / IMAGES_DIR
+            excluded = excluded_images(ctx) if masks is not None else set()
+            names = sorted(p.name for p in images.iterdir() if p.name not in excluded)
+            colmap.extract_features(
+                database,
+                images,
+                settings.camera_model,
+                settings.single_camera,
+                masks,
+                threads,
+                image_names=names if excluded else None,
+            )
+        else:
+            # 360°: eine Lochkamera pro Ansicht mit exakt bekannten Werten, alle Ansichten als starres Rig
+            images = images_root(ctx)
+            excluded = set()
+            names = view_image_names(rig)
+            views = rig_views(rig)
+            size = int(rig["size"])
+            colmap.extract_features(
+                database,
+                images,
+                "PINHOLE",
+                False,
+                masks,
+                threads,
+                image_names=names,
+                camera_params=[views[0].focal, views[0].focal, size / 2, size / 2],
+                per_folder=True,
+                max_features=ctx.config.pano.max_features,
+            )
+            colmap.apply_rig(database, [(f"{v.name}/", v.cam_from_rig()) for v in views])
         timings["features_s"] = time.monotonic() - start
         ctx.cancel.raise_if_cancelled()
 
@@ -92,15 +116,16 @@ class SfmStage(Stage):
         )
         if vocab is None:
             ctx.events.log("Loop-Detection aus (kein Vocab-Tree angegeben)")
+        overlap = settings.sequential_overlap if rig is None else ctx.config.pano.matching_overlap
         colmap.match_sequential(
-            database, settings.sequential_overlap, vocab, settings.loop_detection_period, threads
+            database, overlap, vocab, settings.loop_detection_period, threads, expand_rig=rig is not None
         )
         timings["matching_s"] = time.monotonic() - start
         ctx.cancel.raise_if_cancelled()
 
         num_images = len(names)
         start = time.monotonic()
-        model_dir, registered, mapper_used = self._map(ctx, database, images, out, num_images)
+        model_dir, registered, mapper_used = self._map(ctx, database, images, out, num_images, rig)
         timings["mapping_s"] = time.monotonic() - start
         ratio = registered / num_images if num_images else 0.0
         if model_dir is None or ratio < settings.min_registered_ratio:
@@ -125,6 +150,8 @@ class SfmStage(Stage):
         if masks is not None:
             ctx.events.progress(0.95, message="Masken entzerren")
             undistort_masks(colmap, model_dir, masks, dataset, out / MASK_UNDISTORT_DIR, threads)
+        if rig is not None:
+            flatten_dataset(colmap, dataset)
         info = {
             "registered_images": registered,
             "total_images": num_images,
@@ -133,6 +160,7 @@ class SfmStage(Stage):
             "points3d": colmap.read_model(model_dir).num_points3D(),
             **geometry,
             "masked": masks is not None,
+            "rig_views": len(rig["views"]) if rig is not None else 0,
             "excluded_images": len(excluded),
             **{k: round(v, 1) for k, v in timings.items()},
         }
@@ -161,15 +189,26 @@ class SfmStage(Stage):
             ctx.events.log(f"Szene waagrecht ausgerichtet (lag um {o.tilt_deg:.0f}° schief)")
         return info
 
-    def _masks_dir(self, ctx: StageContext) -> Path | None:
-        """Masken der Stufe 5, falls die Maskierung für diesen Job an ist und fertig gelaufen ist."""
-        if not ctx.config.masking or not ctx.job.is_done(MaskStage.dirname):
-            return None
-        candidate = ctx.job.stage_dir(MaskStage.dirname) / MASKS_DIR
-        return candidate if candidate.is_dir() else None
+    def _masks_dir(self, ctx: StageContext, rig: dict[str, Any] | None) -> Path | None:
+        """Masken der Stufe 5, falls die Maskierung für diesen Job an ist und fertig gelaufen ist. Bei 360°
+        sonst die festen Masken der Stufe 4 (Nadir, Rand des Fisheye-Bildkreises)."""
+        if ctx.config.masking and ctx.job.is_done(MaskStage.dirname):
+            candidate = ctx.job.stage_dir(MaskStage.dirname) / MASKS_DIR
+            if candidate.is_dir():
+                return candidate
+        if rig is not None:
+            static = ctx.job.stage_dir(PanoStage.dirname) / MASKS_DIR
+            return static if static.is_dir() else None
+        return None
 
     def _map(
-        self, ctx: StageContext, database: Path, images: Path, out: Path, num_images: int
+        self,
+        ctx: StageContext,
+        database: Path,
+        images: Path,
+        out: Path,
+        num_images: int,
+        rig: dict[str, Any] | None = None,
     ) -> tuple[Path | None, int, str]:
         settings = ctx.config.sfm
         colmap = ctx.tools.colmap
@@ -189,10 +228,17 @@ class SfmStage(Stage):
                 shutil.rmtree(sparse)
             sparse.mkdir(parents=True)
             try:
+                # 360°-Ansichten: Brennweiten exakt bekannt; Lage der Ansichten zueinander nur bei
+                # Dual-Fisheye verfeinern (Objektive zueinander), bei equirektangulär ist sie exakt
+                rig_options = (
+                    {"fixed_intrinsics": True, "refine_rig": bool(rig["refine_sensor_from_rig"])}
+                    if rig is not None
+                    else {}
+                )
                 if mapper == Mapper.GLOBAL:
-                    models = colmap.map_global(database, images, sparse, threads)
+                    models = colmap.map_global(database, images, sparse, threads, **rig_options)
                 else:
-                    models = colmap.map_incremental(database, images, sparse, threads)
+                    models = colmap.map_incremental(database, images, sparse, threads, **rig_options)
             except Exception as exc:  # COLMAP meldet Fehler als RuntimeError
                 ctx.events.log(f"{mapper}-Mapping fehlgeschlagen: {exc}")
                 continue
@@ -226,7 +272,8 @@ def undistort_masks(
         shutil.rmtree(work)
     renamed = work / "input"
     renamed.mkdir(parents=True)
-    names = sorted(p.name for p in (dataset / IMAGES_DIR).iterdir())
+    root = dataset / IMAGES_DIR
+    names = sorted(p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file())
     available: list[str] = []
     for name in names:
         mask = read_image(masks / f"{name}.png", cv2.IMREAD_GRAYSCALE)
@@ -236,6 +283,7 @@ def undistort_masks(
         ok, encoded = cv2.imencode(".png", mask)
         if not ok:
             continue
+        (renamed / name).parent.mkdir(parents=True, exist_ok=True)
         encoded.tofile(renamed / name)
         available.append(name)
     if not available:
@@ -250,6 +298,33 @@ def undistort_masks(
         mask = read_image(work / "output" / IMAGES_DIR / name, cv2.IMREAD_GRAYSCALE)
         if mask is None:
             continue
-        write_image(target / f"{Path(name).stem}.png", ((mask > 127) * 255).astype("uint8"))
+        out_name = Path(name).parent / f"{Path(name).stem}.png"
+        write_image(target / out_name, ((mask > 127) * 255).astype("uint8"))
     shutil.rmtree(work)
     return len(available)
+
+
+def flatten_dataset(colmap: ColmapAdapter, dataset: Path) -> int:
+    """Legt die Bilder der 360°-Ansichten flach ab: ``v00/c00_000001.jpg`` → ``v00_c00_000001.jpg``.
+
+    Brush 0.3 findet Masken in Unterordnern nicht, und gleichnamige Frames verschiedener Ansichten würden
+    sich bei ``masks/<stem>.png`` gegenseitig überschreiben. Gibt die Anzahl umbenannter Bilder zurück.
+    """
+    images = dataset / IMAGES_DIR
+    masks = dataset / MASKS_DIR
+    mapping = {
+        p.relative_to(images).as_posix(): p.relative_to(images).as_posix().replace("/", "_")
+        for p in images.rglob("*")
+        if p.is_file() and p.parent != images
+    }
+    for old, new in mapping.items():
+        (images / old).rename(images / new)
+        mask = masks / Path(old).parent / f"{Path(old).stem}.png"
+        if mask.is_file():
+            mask.rename(masks / f"{Path(new).stem}.png")
+    for folder in sorted({*images.rglob("*"), *masks.rglob("*")}, reverse=True):
+        if folder.is_dir() and not any(folder.iterdir()):
+            folder.rmdir()
+    if mapping:
+        colmap.rename_images(dataset / "sparse", mapping)
+    return len(mapping)

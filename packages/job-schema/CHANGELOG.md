@@ -2,6 +2,12 @@
 
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionen nach [SemVer](https://semver.org/lang/de/).
 
+## [0.3.0] – 2026-10-04
+
+### Hinzugefügt
+- Job-Konfiguration: Abschnitt `pano` für 360°-Material. `schema_version` bleibt 1.
+- Events: `stage_count` kann sich nach der Analyse erhöhen, wenn die 360°-Stufe dazukommt.
+
 ## [0.2.1] – 2026-10-04
 
 ### Hinzugefügt

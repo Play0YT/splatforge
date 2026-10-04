@@ -38,7 +38,7 @@ def resolve(settings: MaskSettings, providers: list[str]) -> tuple[MaskMethod, s
 
 def run(task_file: Path) -> int:
     from .onnx_models import CLASS_GROUPS, Detector, Segmenter, choose_providers
-    from .run import compute_masks
+    from .run import compute_masks, merge_summaries
 
     task = json.loads(task_file.read_text(encoding="utf-8"))
     settings = MaskSettings.model_validate(task["settings"])
@@ -73,19 +73,31 @@ def run(task_file: Path) -> int:
             )
         classes = tuple(c for group in settings.classes for c in CLASS_GROUPS[group])
         threads = int(task.get("num_threads", 0))
-        summary = compute_masks(
-            images_dir=Path(task["images_dir"]),
-            names=list(task["names"]),
-            out_dir=Path(task["out_dir"]),
-            settings=settings,
-            classes=classes,
-            detector=Detector(folders[DETECTOR_MODEL], providers, threads),
-            segmenter=Segmenter(folders[model_key], providers, threads),
-            on_progress=lambda f, msg: emit(
-                type="progress", fraction=DOWNLOAD_SHARE + (1 - DOWNLOAD_SHARE) * f, message=msg
-            ),
-            cancel=cancel,
-        )
+        detector = Detector(folders[DETECTOR_MODEL], providers, threads)
+        segmenter = Segmenter(folders[model_key], providers, threads)
+        # Mehrere Bildfolgen (360°: eine pro Ansicht) werden getrennt verfolgt
+        groups: list[list[str]] = task.get("groups") or [list(task["names"])]
+        parts = []
+        for g, names in enumerate(groups):
+
+            def on_progress(f: float, msg: str, g: int = g) -> None:
+                share = (g + f) / len(groups)
+                emit(type="progress", fraction=DOWNLOAD_SHARE + (1 - DOWNLOAD_SHARE) * share, message=msg)
+
+            parts.append(
+                compute_masks(
+                    images_dir=Path(task["images_dir"]),
+                    names=names,
+                    out_dir=Path(task["out_dir"]),
+                    settings=settings,
+                    classes=classes,
+                    detector=detector,
+                    segmenter=segmenter,
+                    on_progress=on_progress,
+                    cancel=cancel,
+                )
+            )
+        summary = merge_summaries(parts)
     except JobCancelledError:
         return EXIT_CANCELLED
     except SplatForgeError as exc:

@@ -91,16 +91,30 @@ class ColmapAdapter:
         masks: Path | None,
         num_threads: int,
         image_names: list[str] | None = None,
+        camera_params: list[float] | None = None,
+        per_folder: bool = False,
+        max_features: int | None = None,
     ) -> None:
-        """``image_names`` beschränkt die Suche auf diese Bilder (leer oder ``None`` = alle)."""
+        """``image_names`` beschränkt die Suche auf diese Bilder (leer oder ``None`` = alle).
+
+        ``camera_params`` setzt bekannte Kameraparameter (z. B. bei 360°-Ansichten), ``per_folder`` legt
+        eine Kamera pro Unterordner an (eine pro Ansicht im Rig).
+        """
         pc = self.pycolmap
         reader = pc.ImageReaderOptions()
         reader.camera_model = camera_model
+        if camera_params is not None:
+            reader.camera_params = ",".join(f"{v:.10g}" for v in camera_params)
         if masks is not None:
             reader.mask_path = str(masks)
         extraction = pc.FeatureExtractionOptions()
         extraction.num_threads = num_threads or -1
-        mode = pc.CameraMode.SINGLE if single_camera else pc.CameraMode.AUTO
+        if max_features is not None:
+            extraction.sift.max_num_features = max_features
+        if per_folder:
+            mode = pc.CameraMode.PER_FOLDER
+        else:
+            mode = pc.CameraMode.SINGLE if single_camera else pc.CameraMode.AUTO
         with self._native_log():
             pc.extract_features(
                 database,
@@ -111,13 +125,40 @@ class ColmapAdapter:
                 extraction_options=extraction,
             )
 
+    def apply_rig(self, database: Path, sensors: list[tuple[str, Any]]) -> None:
+        """Legt ein starres Rig an. ``sensors``: (Bildpräfix, Drehung Kamera ← Rig) je Kamera; die erste
+        ist die Referenz. Bilder mit gleichem Namen nach dem Präfix gehören zum selben Zeitpunkt."""
+        import numpy as np
+
+        pc = self.pycolmap
+        cameras = []
+        for i, (prefix, rotation) in enumerate(sensors):
+            cam = pc.RigConfigCamera(ref_sensor=i == 0, image_prefix=prefix)
+            if i:
+                cam.cam_from_rig = pc.Rigid3d(pc.Rotation3d(np.asarray(rotation)), np.zeros(3))
+            cameras.append(cam)
+        db = pc.Database.open(database)
+        try:
+            with self._native_log():
+                pc.apply_rig_config([pc.RigConfig(cameras=cameras)], db)
+        finally:
+            db.close()
+
     def match_sequential(
-        self, database: Path, overlap: int, vocab_tree: Path | None, loop_period: int, num_threads: int
+        self,
+        database: Path,
+        overlap: int,
+        vocab_tree: Path | None,
+        loop_period: int,
+        num_threads: int,
+        expand_rig: bool = False,
     ) -> None:
         pc = self.pycolmap
         pairing = pc.SequentialPairingOptions()
         pairing.overlap = overlap
         pairing.num_threads = num_threads or -1
+        # Bei Rigs: alle Ansichten benachbarter Zeitpunkte miteinander vergleichen
+        pairing.expand_rig_images = expand_rig
         if vocab_tree is not None:
             pairing.loop_detection = True
             pairing.loop_detection_period = loop_period
@@ -127,18 +168,47 @@ class ColmapAdapter:
         with self._native_log():
             pc.match_sequential(database, matching_options=matching, pairing_options=pairing)
 
-    def map_incremental(self, database: Path, images: Path, output: Path, num_threads: int) -> dict[int, Any]:
+    def map_incremental(
+        self,
+        database: Path,
+        images: Path,
+        output: Path,
+        num_threads: int,
+        fixed_intrinsics: bool = False,
+        refine_rig: bool = True,
+    ) -> dict[int, Any]:
         pc = self.pycolmap
         options = pc.IncrementalPipelineOptions()
         options.num_threads = num_threads or -1
+        if fixed_intrinsics:
+            options.ba_refine_focal_length = False
+            options.ba_refine_principal_point = False
+            options.ba_refine_extra_params = False
+        options.ba_refine_sensor_from_rig = refine_rig
         with self._native_log():
             result: dict[int, Any] = pc.incremental_mapping(database, images, output, options=options)
         return result
 
-    def map_global(self, database: Path, images: Path, output: Path, num_threads: int) -> dict[int, Any]:
+    def map_global(
+        self,
+        database: Path,
+        images: Path,
+        output: Path,
+        num_threads: int,
+        fixed_intrinsics: bool = False,
+        refine_rig: bool = True,
+    ) -> dict[int, Any]:
         pc = self.pycolmap
         options = pc.GlobalPipelineOptions()
         options.num_threads = num_threads or -1
+        ba = options.mapper.bundle_adjustment
+        if fixed_intrinsics:
+            # Sonst „verbessert“ COLMAP die exakt bekannten Brennweiten der 360°-Ansichten und verzieht sie
+            ba.refine_focal_length = False
+            ba.refine_principal_point = False
+            ba.refine_extra_params = False
+        ba.refine_sensor_from_rig = refine_rig
+        options.mapper.refine_sensor_from_rig = refine_rig
         with self._native_log():
             result: dict[int, Any] = pc.global_mapping(database, images, output, options=options)
         return result
@@ -162,6 +232,14 @@ class ColmapAdapter:
                 jpeg_quality=jpeg_quality,
                 num_threads=num_threads or -1,
             )
+
+    def rename_images(self, path: Path, mapping: dict[str, str]) -> None:
+        """Benennt Bilder in einem Modell um (an Ort und Stelle)."""
+        rec = self.read_model(path)
+        for image in rec.images.values():
+            if image.name in mapping:
+                image.name = mapping[image.name]
+        rec.write(path)
 
     def read_model(self, path: Path) -> Any:
         return self.pycolmap.Reconstruction(path)

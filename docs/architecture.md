@@ -24,7 +24,8 @@ einer anderen App.
 ├─ events.jsonl        alle Events dieses Jobs
 ├─ 01_analyze/         analysis.json
 ├─ 02_extract/         frames/, frames.json
-├─ 03_select/          images/ (ausgewählte Frames), selection.json
+├─ 03_select/          images/ (ausgewählte Frames), images_lens2/ (Dual-Fisheye), selection.json
+├─ 04_360/            nur bei 360°: images/<ansicht>/, masks/<ansicht>/ (Nadir, Bildkreis), rig.json
 ├─ 05_mask/            nur mit --masking: masks/<bild>.png (COLMAP-Format), overlays/, mask.json
 ├─ 06_sfm/             database.db, sparse_*/, dataset/ (entzerrt: images/, sparse/, masks/), colmap.log
 ├─ 07_train/           backend.txt, checkpoint.pt bzw. brush_exports/, preview.ply, final.ply
@@ -45,11 +46,22 @@ Gemeinsame Schnittstelle `Stage` (`stages/base.py`): `run`, `is_done`, `estimate
 | 1 | Analyse | `stages/analyze.py` | fertig |
 | 2 | Frame-Extraktion | `stages/extract.py` | fertig |
 | 3 | Frame-Auswahl | `stages/select.py` | fertig |
-| 4 | 360°-Aufbereitung | – | Meilenstein 3 |
+| 4 | 360°-Aufbereitung | `stages/pano.py`, `panorama.py` | equirektangulär und Dual-Fisheye |
 | 5 | Personenmaskierung | `stages/mask.py`, `masking/` | ONNX-Bildmodell; Video-Verfolgung folgt |
 | 6 | Kamerapositionen | `stages/sfm.py` | fertig |
 | 7 | Training | `stages/train.py`, `training/cpu.py` | Brush + CPU |
 | 8 | Export | `stages/export.py` | `.ply` + Report; Floater/`.spz` in Meilenstein 7 |
+
+## 360°
+
+`panorama.py` enthält die Projektionsmathematik (Ansichten, equirektangulär, Unified-Fisheye-Modell mit
+Umkehrung, Nadir-Maske, Masken-Abgleich über ein gemeinsames Kugelpanorama). Stufe 4 rendert pro
+Zeitpunkt die Ansichten in je einen Ordner pro Ansicht; COLMAP legt dafür eine Kamera pro Ordner an
+(`PINHOLE`, feste Werte) und fasst sie per `apply_rig_config` zu einem Rig zusammen. Beim sequenziellen
+Vergleich werden alle Ansichten benachbarter Zeitpunkte verglichen (`expand_rig_images`). Nach dem Entzerren
+werden die Bildnamen flach gemacht (`v00/x.jpg` → `v00_x.jpg`), weil Brush 0.3 Masken in Unterordnern nicht
+findet. Die Kalibrierung von Insta360 liest `insv.lens_calibrations` aus `offset_v3`. Ob die Stufe läuft,
+entscheidet die Pipeline erst nach der Analyse (`Stage.applies` wird vor jeder Stufe neu ausgewertet).
 
 ## Ausrichtung
 

@@ -11,12 +11,11 @@ Geplant sind zwei eigenständige Anwendungen mit gemeinsamem Verarbeitungskern:
 
 | Teil | Version | Stand |
 | --- | --- | --- |
-| [`packages/core`](packages/core) | 0.3.1 | Kommandozeile: Video → (Personen maskieren) → Kamerapositionen → Splat (`.ply`) |
-| [`packages/job-schema`](packages/job-schema) | 0.2.1 | JSON-Schemas für Job-Konfiguration und Events |
+| [`packages/core`](packages/core) | 0.4.0 | Kommandozeile: Video oder 360° → (Personen maskieren) → Kamerapositionen → Splat (`.ply`) |
+| [`packages/job-schema`](packages/job-schema) | 0.3.0 | JSON-Schemas für Job-Konfiguration und Events |
 | `packages/ui-components`, `apps/*` | – | noch nicht begonnen |
 
-Insta360-Dateien (`.insv`) werden gelesen und lassen sich als Einzelbilder pro Objektiv exportieren; ein
-Splat aus 360°-Material folgt noch. Personen im Bild lassen sich automatisch ausblenden (`--masking`).
+360°-Aufnahmen (Insta360 `.insv` und equirektangulär) werden in normale Ansichten zerlegt. Personen im Bild lassen sich automatisch ausblenden (`--masking`).
 Noch nicht enthalten: Desktop-App, Server. Änderungen pro Version stehen im `CHANGELOG.md` des jeweiligen
 Pakets.
 
@@ -122,19 +121,38 @@ uv run splatforge run <video> --preset preview --masking --out <neuer-ordner>
 - Dauer auf der CPU: Richtwert 3 Sekunden pro Bild (gemessen auf einem Cloud-Testrechner, auf älteren PCs
   eher mehr), bei 120 Bildern also gut 6 Minuten zusätzlich.
 
-## Insta360-Dateien (.insv) ansehen
+## 360°-Aufnahmen (Insta360 und equirektangulär)
 
-SplatForge erkennt `.insv`-Dateien und liest Kameramodell und Objektiv-Kalibrierung. Die Berechnung eines
-Splats aus 360°-Aufnahmen folgt noch; die Einzelbilder beider Objektive lassen sich aber schon exportieren:
+SplatForge verarbeitet 360°-Material auf zwei Wegen:
+
+- **Export aus Insta360 Studio (zuverlässigster Weg):** In Insta360 Studio die Aufnahme als 360°-Video
+  exportieren (equirektangulär, MP4, möglichst hohe Auflösung) und diese Datei angeben.
+- **.insv direkt:** die Originaldatei der Kamera. SplatForge liest die Objektiv-Kalibrierung aus der Datei.
+  Nimmt die Kamera pro Objektiv eine eigene Datei auf (Namen mit `_00_` und `_10_`), müssen beide im selben
+  Ordner liegen; angegeben wird eine davon.
 
 ```
-uv run splatforge analyze <datei>.insv
-uv run splatforge frames <datei>.insv --out <neuer-ordner> --count 20
+uv run splatforge run <video>.mp4 --preset preview --masking --out <neuer-ordner>
+uv run splatforge run VID_…_00_….insv --preset preview --masking --out <neuer-ordner>
 ```
 
-Danach liegen die Bilder in `<neuer-ordner>/objektiv_1` und `objektiv_2`. Nimmt die Kamera pro Objektiv eine
-eigene Datei auf (Namen mit `_00_` und `_10_`), müssen beide im selben Ordner liegen. Dateien, die mit
-`LRV_` beginnen, sind nur Vorschauen in niedriger Auflösung; für einen Splat die `VID_`-Dateien verwenden.
+Jeder ausgewählte Zeitpunkt wird in 10 normale Ansichten zerlegt (Stufe `04_360`) und als starres
+Kamera-Rig berechnet. Der Bereich direkt unter der Kamera (Stick, Hand) wird ausgeblendet. Mit `--masking`
+werden auch Personen erkannt, also vor allem du selbst, falls du die Kamera trägst. Eine Person am Rand einer
+Ansicht wird dabei auch in der Nachbaransicht ausgeblendet.
+
+- **Aufnahme:** Kamera am Stick über dem Kopf halten und langsam gehen, z. B. einmal um ein Haus oder einen
+  Baum oder durch einen Raum. Nur auf der Stelle drehen reicht auch bei 360° nicht.
+- **Dauer:** Pro Zeitpunkt entstehen 10 Bilder. Deshalb nimmt SplatForge bei 360° nur halb so viele
+  Zeitpunkte wie bei normalen Videos (Vorschau: 60 statt 120), trotzdem sind es 600 Bilder. COLMAP und das
+  Training brauchen entsprechend länger.
+- **Einstellungen:** Anzahl, Sichtfeld und Grösse der Ansichten, der Nadir-Bereich (Standard 30°) und
+  weiteres stehen im Abschnitt `pano` der Job-Konfiguration. Wird ein Video falsch erkannt, hilft
+  `--camera-type equirectangular` (bzw. `dual_fisheye` oder `perspective`).
+- `LRV_…`-Dateien sind nur Vorschauen in niedriger Auflösung; für einen Splat die `VID_`-Dateien verwenden.
+
+Zum Ansehen der Rohbilder ohne Job: `uv run splatforge frames <datei>.insv --out <neuer-ordner> --count 20`
+(bei Dual-Fisheye pro Objektiv ein Ordner).
 
 ## Training mit Grafikkarte (Brush)
 

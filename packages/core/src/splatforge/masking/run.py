@@ -107,10 +107,28 @@ def compute_masks(
         save_colmap_mask(masks_dir / f"{name}.png", ignore)
         if settings.write_overlays and detections:
             bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
-            write_image(overlays_dir / f"{Path(name).stem}.jpg", overlay(np.asarray(bgr, np.uint8), ignore))
+            # Unterordner (360°-Ansichten) beibehalten, damit gleichnamige Frames sich nicht überschreiben
+            target = overlays_dir / Path(name).with_suffix(".jpg")
+            write_image(target, overlay(np.asarray(bgr, np.uint8), ignore))
         on_progress(DETECTION_SHARE + (1 - DETECTION_SHARE) * (i + 1) / len(names), "Masken berechnen")
 
     values = list(summary.fractions.values())
     summary.mean_masked_fraction = float(np.mean(values)) if values else 0.0
     summary.max_masked_fraction = float(np.max(values)) if values else 0.0
     return summary
+
+
+def merge_summaries(parts: list[MaskSummary]) -> MaskSummary:
+    """Fasst die Ergebnisse mehrerer Bildfolgen (z. B. der 360°-Ansichten) zusammen."""
+    merged = MaskSummary(
+        frames=sum(p.frames for p in parts),
+        frames_with_objects=sum(p.frames_with_objects for p in parts),
+        interpolated_boxes=sum(p.interpolated_boxes for p in parts),
+    )
+    for p in parts:
+        merged.excluded += p.excluded
+        merged.fractions.update(p.fractions)
+    values = list(merged.fractions.values())
+    merged.mean_masked_fraction = float(np.mean(values)) if values else 0.0
+    merged.max_masked_fraction = float(np.max(values)) if values else 0.0
+    return merged

@@ -22,10 +22,12 @@ from numpy.typing import NDArray
 from ..config import SelectSettings
 from ..errors import UnsupportedInputError
 from ..imageio import Image, read_image
+from .analyze import target_frames
 from .base import Stage, StageContext, read_json, write_json
-from .extract import FRAMES_DIR, FRAMES_FILE, ExtractStage
+from .extract import FRAMES_DIR, FRAMES_FILE, SECOND_LENS_DIR, ExtractStage
 
 IMAGES_DIR = "images"
+SECOND_LENS_IMAGES_DIR = "images_lens2"
 SELECTION_FILE = "selection.json"
 
 
@@ -117,7 +119,7 @@ class SelectStage(Stage):
         settings = ctx.config.select
         extract_dir = ctx.job.stage_dir(ExtractStage.dirname)
         frames = read_json(extract_dir / FRAMES_FILE)["frames"]
-        target = ctx.config.effective().frames
+        target = target_frames(ctx)
         stats: list[FrameStats] = []
         prev_gray: Image | None = None
         prev_clip = -1
@@ -167,6 +169,11 @@ class SelectStage(Stage):
         images_dir.mkdir(parents=True, exist_ok=True)
         for s in selected:
             _link_or_copy(extract_dir / FRAMES_DIR / s.name, images_dir / s.name)
+        second = extract_dir / SECOND_LENS_DIR
+        if second.is_dir():
+            (self.out_dir(ctx) / SECOND_LENS_IMAGES_DIR).mkdir(exist_ok=True)
+            for s in selected:
+                _link_or_copy(second / s.name, self.out_dir(ctx) / SECOND_LENS_IMAGES_DIR / s.name)
         write_json(
             self.out_dir(ctx) / SELECTION_FILE,
             {
