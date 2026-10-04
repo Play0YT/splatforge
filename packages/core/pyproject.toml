@@ -1,6 +1,6 @@
 [project]
 name = "splatforge"
-version = "0.4.0"
+version = "0.4.1"
 description = "SplatForge Core: Video zu 3D Gaussian Splat (Pipeline und CLI, ohne UI und HTTP)"
 readme = "README.md"
 requires-python = ">=3.11"

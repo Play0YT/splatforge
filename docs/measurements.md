@@ -107,3 +107,22 @@ Meilenstein 2 erfüllt).
   Meilenstein 4 (Robustheit/Tempo).
 - Das Training mit Brush dauerte länger als beim Lauf ohne Masken (rund 40 min reine Rechenzeit); ob das an
   den Masken liegt, ist nicht geprüft.
+
+## 2026-10-04 – Core 0.4.0, Insta360 X4, Brush (Rückmeldung des Projektinhabers)
+
+Linux-Rechner (Hardware nicht angegeben). Eine Aufnahme der X4 (.insv, zwei HEVC-Spuren mit je 3840×3840,
+29,97 fps, 175 s), einmal als Export aus Insta360 Studio (equirektangulär) und einmal als .insv direkt,
+`--preset preview --backend brush` ohne Maskierung (60 Zeitpunkte × 10 Ansichten = 600 Bilder).
+
+| | Export (equirektangulär) | .insv direkt (0.4.0) |
+| --- | --- | --- |
+| Ansichtsgrösse | 916 px | 1280 px |
+| Extraktion | 11 s | 275 s |
+| Kamerapositionen | 392 s, 600/600 | 523 s, 600/600 |
+| Training (Brush, 7 000 Iterationen) | 124 s | 230 s |
+| Gesamt | 536 s | 1 059 s |
+| PSNR / SSIM (laut Brush) | 22,3 dB / 0,64 | 16,3 dB / 0,48 |
+
+Der schlechtere .insv-Wert geht auf einen Fehler bei der Umrechnung der X4-Kalibrierung zurück (behoben in
+0.4.1, siehe Changelog). Die langsame Extraktion beim .insv liegt am Dekodieren von zwei 3840er-HEVC-Spuren.
+Nächste Messung: dieselbe .insv-Datei mit 0.4.1.

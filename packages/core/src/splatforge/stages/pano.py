@@ -115,15 +115,22 @@ class PanoStage(Stage):
         max_edge = ctx.config.effective().max_image_edge
 
         lenses_per_clip: dict[int, list[FisheyeLens]] = {}
-        calibrated = True
+        calibrated: bool | None = None  # nur bei Dual-Fisheye aussagekräftig
         if kind == CameraType.EQUIRECTANGULAR:
             natural = auto_view_size(width, settings.fov_deg, equirect=True)
             size = settings.view_size or min(max_edge, natural)
             views = equirect_views(settings.views, settings.fov_deg, size, settings.up_down)
         else:
+            calibrated = True
             for clip, info in enumerate(inputs):
                 lenses_per_clip[clip], ok = input_lenses(info, width, height)
                 calibrated &= ok
+                cals = lens_calibrations(InsvMetadata(offset_v3=(info.insv or {}).get("offset_v3", [])))
+                if cals and any(c.rotated_deg for c in cals):
+                    ctx.events.log(
+                        f"{Path(info.path).name}: Kalibrierung auf das bereits aufrecht gespeicherte "
+                        f"Videobild umgerechnet (Sensor um {cals[0].rotated_deg}° gedreht)"
+                    )
             natural = auto_view_size(width, settings.fov_deg, equirect=False, lens=lenses_per_clip[0][0])
             size = settings.view_size or min(max_edge, natural)
             views = fisheye_views(settings.fisheye_tilt_deg, settings.fov_deg, size)

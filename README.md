@@ -11,7 +11,7 @@ Geplant sind zwei eigenständige Anwendungen mit gemeinsamem Verarbeitungskern:
 
 | Teil | Version | Stand |
 | --- | --- | --- |
-| [`packages/core`](packages/core) | 0.4.0 | Kommandozeile: Video oder 360° → (Personen maskieren) → Kamerapositionen → Splat (`.ply`) |
+| [`packages/core`](packages/core) | 0.4.1 | Kommandozeile: Video oder 360° → (Personen maskieren) → Kamerapositionen → Splat (`.ply`) |
 | [`packages/job-schema`](packages/job-schema) | 0.3.0 | JSON-Schemas für Job-Konfiguration und Events |
 | `packages/ui-components`, `apps/*` | – | noch nicht begonnen |
 

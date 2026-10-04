@@ -171,3 +171,47 @@ def test_share_masks_crosses_view_borders() -> None:
     assert shared[0].sum() >= masks[0].sum()
     assert shared[1].any() and not masks[1].any()
     assert not shared[4].any()  # gegenüberliegende Ansicht bleibt frei
+
+
+# Werkskalibrierung einer Insta360 X4 (offset_v3 einer echten Datei; Sensor 8000×6000 pro Objektiv, Video
+# 3840×3840 pro Objektiv, Sensor um ≈90° gedreht, Video aber bereits aufrecht)
+X4_OFFSET_V3 = [
+    2.0, 1.94817, 4616.94, 4616.35, 4008.79, 3007.96, 0.371, 0.096, 90.399, 0.0, 0.0, 0.0,
+    0.37965181, 1.41417241, -4.22088528, -0.00062194, -0.00135227, 16000.0, 6000.0, 71.0,
+    1.94817, 4605.94, 4604.64, 12015.67, 2994.86, -0.362, 0.096, 90.272, -0.002026, 0.000173, -0.032125,
+    0.38574281, 1.35695291, -4.07583952, -0.00042552, -0.00014615, 16000.0, 6000.0, 71.0, 197632.0,
+]  # fmt: skip
+
+
+def test_x4_calibration_is_cropped_and_unrotated() -> None:
+    lenses = lens_calibrations(InsvMetadata(offset_v3=X4_OFFSET_V3))
+    assert lenses is not None and len(lenses) == 2
+    for lens in lenses:
+        assert lens.width == lens.height == 6000  # mittlerer quadratischer Ausschnitt des Sensors
+        assert lens.rotated_deg == 90
+        assert abs(lens.roll) < 1  # nur die kleine Restabweichung bleibt
+        assert abs(lens.cx - 2999.5) < 20 and abs(lens.cy - 2999.5) < 20
+    # Brennweiten und Mitte werden mitgedreht
+    assert lenses[0].fx == pytest.approx(4616.35) and lenses[0].fy == pytest.approx(4616.94)
+    assert lenses[0].cx == pytest.approx(3007.96)
+
+
+def test_x4_image_circle_fits_video_frame() -> None:
+    """Mit gleichmässiger Skalierung auf 3840×3840 füllt der Bildkreis das Videobild fast aus."""
+    from splatforge.stages.analyze import InputInfo
+    from splatforge.stages.pano import input_lenses
+
+    info = InputInfo(
+        path="x.insv", kind="video", camera_type="dual_fisheye", insv={"offset_v3": X4_OFFSET_V3}
+    )
+    lenses, calibrated = input_lenses(info, 3840, 3840)
+    assert calibrated
+    front = lenses[0]
+    u, v, ok = front.lookup(np.array([[0.0, 0.0, 1.0]]))
+    assert ok[0] and abs(u[0] - 1919.5) < 15 and abs(v[0] - 1919.5) < 15
+    side = np.array([[math.sin(math.radians(96)), 0.0, math.cos(math.radians(96))]])
+    u, v, ok = front.lookup(side)
+    assert ok[0] and 1750 < abs(u[0] - 1919.5) < 1920  # 96° liegt knapp innerhalb des Bildrands
+    # Video ist aufrecht: oben im Rig landet oben im Bild
+    up = np.array([[0.0, -math.sin(math.radians(30)), math.cos(math.radians(30))]])
+    assert front.lookup(up)[1][0] < 1919.5

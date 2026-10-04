@@ -2,6 +2,19 @@
 
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionen nach [SemVer](https://semver.org/lang/de/).
 
+## [0.4.1] – 2026-10-04
+
+### Behoben
+- Insta360 X4 (.insv): Die Objektiv-Kalibrierung wurde falsch auf das Videobild umgerechnet. Die X4 gibt sie
+  in Koordinaten ihres 8000×6000-Sensors an; im Video steckt pro Objektiv der mittlere 6000×6000-Ausschnitt,
+  gleichmässig verkleinert (bisher wurden Breite und Höhe getrennt skaliert und die Ansichten dadurch
+  verzerrt). Ausserdem speichert die X4 das Video schon aufrecht, obwohl der Sensor um 90° gedreht
+  eingebaut ist; diese Drehung wurde ein zweites Mal angewendet (Ansichten seitlich, Ausrichtung falsch).
+  Eine Sensorlage von ±90° gilt jetzt als von der Kamera ausgeglichen und wird in die Kalibrierung
+  eingerechnet. Die ONE RS (Lage 180°, Bild tatsächlich auf dem Kopf) ist davon nicht betroffen.
+- `report.json`: `calibrated` steht bei equirektangulärem Material nicht mehr fälschlich auf `true`
+  (nur bei Dual-Fisheye aussagekräftig).
+
 ## [0.4.0] – 2026-10-04
 
 ### Hinzugefügt

@@ -31,3 +31,9 @@ unplausiblen Werten (z. B. anderes Format neuerer Modelle) greifen Näherungswer
 Sensorlage wird nur als Drehung um die Blickachse übernommen; kleine Abweichungen gleicht COLMAP aus.
 Weg A bleibt als spätere Option möglich, falls Messungen mit echten Aufnahmen dafür sprechen. Der Export
 aus Insta360 Studio als equirektanguläres MP4 bleibt der zuverlässigste Weg.
+
+**Nachtrag 2026-10-04 (Core 0.4.1).** Erste echte X4-Aufnahme: Die Kalibrierung bezieht sich auf den
+8000×6000-Sensor, das Video enthält den mittleren quadratischen Ausschnitt; die Sensorlage von 90° hat die
+Kamera im Video bereits ausgeglichen. Beides wird jetzt berücksichtigt. Die Drehrichtung beim Einrechnen
+der 90° lässt sich aus den Daten nicht eindeutig ablesen; sie wirkt sich nur auf die kleine Abweichung der
+Bildmitte (etwa 6 Pixel) aus.

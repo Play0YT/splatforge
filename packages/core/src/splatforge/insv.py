@@ -268,8 +268,14 @@ def original_files(path: Path) -> list[Path]:
 
 # offset_v3: Anzahl Objektive, dann pro Objektiv 19 Werte, am Ende ein Kennwert. Reihenfolge pro Objektiv
 # (nach telemetry-parser): xi fx fy cx cy yaw pitch roll tx ty tz k1 k2 k3 p1 p2 Breite Höhe Linsentyp.
-# Breite/Höhe beschreiben das Referenzbild mit beiden Objektiven nebeneinander (z. B. 6528×3264 bei der
-# ONE RS); cx des zweiten Objektivs zählt ab dessen linkem Rand im Referenzbild.
+# Breite/Höhe beschreiben das Referenzbild mit beiden Objektiven nebeneinander, in Sensorkoordinaten
+# (ONE RS: 6528×3264, also 3264×3264 pro Objektiv; X4: 16000×6000, also ein 8000×6000-Sensor pro Objektiv).
+# cx des zweiten Objektivs zählt ab dessen linkem Rand im Referenzbild. Im Video steckt pro Objektiv der
+# mittlere quadratische Ausschnitt des Sensors (X4: 6000×6000), gleichmässig verkleinert.
+# Sensorlage (roll): Bei der ONE RS (≈180°) steht das Videobild wirklich auf dem Kopf. Bei der X4 (≈90°)
+# speichert die Kamera das Video bereits aufrecht; eine Lage von ±90° gilt deshalb als von der Kamera
+# ausgeglichen und wird in die Kalibrierung eingerechnet (Mitte, Brennweiten und Tangentialverzerrung
+# mitgedreht), übrig bleibt nur die kleine Restabweichung.
 LENS_VALUES = 19
 # Plausibilitätsgrenze: Der Bildmittelpunkt muss nahe der Bildmitte liegen, sonst gilt die Kalibrierung als
 # nicht verstanden (z. B. anderes Format bei neueren Modellen) und es werden Ersatzwerte verwendet.
@@ -295,6 +301,24 @@ class LensCalibration:
     p2: float
     width: float
     height: float
+    rotated_deg: int = 0  # um so viel hat die Kamera das Videobild gegenüber dem Sensor schon gedreht
+
+
+def _rotate_quarter(cal: LensCalibration, quarters: int) -> LensCalibration:
+    """Rechnet die Kalibrierung auf ein Bild um, das um ``quarters`` × 90° gedreht gespeichert wurde
+    (Drehrichtung wie die Sensorlage ``roll``), sodass die Lage fast aufgehoben ist."""
+    c = (cal.width - 1) / 2  # quadratisch
+    dx, dy = cal.cx - c, cal.cy - c
+    fx, fy, p1, p2 = cal.fx, cal.fy, cal.p1, cal.p2
+    for _ in range(quarters % 4):
+        # Bildpunkte (x, y) → (y, −x); Tangentialverzerrung: p1' = −p2, p2' = p1
+        dx, dy = dy, -dx
+        fx, fy = fy, fx
+        p1, p2 = -p2, p1
+    return LensCalibration(
+        cal.xi, fx, fy, c + dx, c + dy, cal.yaw, cal.pitch, cal.roll - 90 * quarters,
+        cal.k1, cal.k2, cal.k3, p1, p2, cal.width, cal.height, 90 * quarters,
+    )  # fmt: skip
 
 
 def lens_calibrations(meta: InsvMetadata) -> list[LensCalibration] | None:
@@ -320,7 +344,13 @@ def lens_calibrations(meta: InsvMetadata) -> list[LensCalibration] | None:
             and abs(cy / ref_height - 0.5) < MAX_CENTER_OFFSET
         ):
             return None
-        lenses.append(
-            LensCalibration(xi, fx, fy, cx, cy, yaw, pitch, roll, k1, k2, k3, p1, p2, lens_width, ref_height)
-        )
+        # Mittlerer quadratischer Ausschnitt, so wie er im Video steht
+        side = min(lens_width, ref_height)
+        cx -= (lens_width - side) / 2
+        cy -= (ref_height - side) / 2
+        cal = LensCalibration(xi, fx, fy, cx, cy, yaw, pitch, roll, k1, k2, k3, p1, p2, side, side)
+        quarters = round(roll / 90)
+        if quarters % 2:
+            cal = _rotate_quarter(cal, quarters)
+        lenses.append(cal)
     return lenses
