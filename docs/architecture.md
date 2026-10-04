@@ -51,6 +51,14 @@ Gemeinsame Schnittstelle `Stage` (`stages/base.py`): `run`, `is_done`, `estimate
 | 7 | Training | `stages/train.py`, `training/cpu.py` | Brush + CPU |
 | 8 | Export | `stages/export.py` | `.ply` + Report; Floater/`.spz` in Meilenstein 7 |
 
+## Ausrichtung
+
+Nach dem Mapping dreht `stages/sfm.py` das Modell so, dass oben −Y entspricht, und legt die Szenenmitte in den
+Ursprung (`orient.py`). „Oben“ ist die Richtung senkrecht zu den rechten Achsen aller Kameras; das hält auch
+bei nach unten geneigter oder wackelnder Kamera. Die Export-Stufe vermerkt das in der PLY
+(`comment vertical axis: y`), sonst schätzt Brush die Richtung selbst aus der Kamerabahn. `orient.py` misst
+ausserdem, wie weit sich die Kamera im Verhältnis zur Szene bewegt hat (`baseline_ratio`).
+
 ## Hintergrundprozesse
 
 Bibliotheken mit eigener Laufzeit (PyTorch, onnxruntime) laufen nie im selben Prozess wie pycolmap: Unter

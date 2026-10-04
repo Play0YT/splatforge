@@ -38,6 +38,10 @@ def test_full_run_and_resume(tmp_path: Path, synthetic_video: Path) -> None:
     assert report["registered_images"] / report["total_images"] >= 0.6
     cloud = read_ply(job / "08_export" / "splat.ply")
     assert len(cloud) > 100
+    # Szene ausgerichtet und in der PLY vermerkt (Brush liest daraus die Richtung oben)
+    assert report["stages"]["sfm"]["oriented"] is True
+    assert report["stages"]["sfm"]["baseline_ratio"] > 0.1
+    assert b"comment vertical axis: y" in (job / "08_export" / "splat.ply").read_bytes()[:400]
     assert report["quality"]["psnr"] is not None
 
     # Fortsetzen: alle Stufen sind fertig und werden übersprungen

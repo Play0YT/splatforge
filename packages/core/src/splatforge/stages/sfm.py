@@ -13,6 +13,7 @@ from ..adapters.colmap import ColmapAdapter, DatabaseStats
 from ..config import Mapper, SfmSettings
 from ..errors import ReconstructionError
 from ..imageio import read_image, write_image
+from ..orient import baseline_ratio, orientation
 from .base import Stage, StageContext, write_json
 from .mask import MaskStage, excluded_images
 from .select import IMAGES_DIR, SelectStage
@@ -114,6 +115,8 @@ class SfmStage(Stage):
                 ),
             )
 
+        geometry = self._check_geometry(ctx, model_dir)
+
         ctx.events.progress(0.9, message="Bilder entzerren")
         dataset = out / DATASET_DIR
         if dataset.exists():
@@ -128,12 +131,34 @@ class SfmStage(Stage):
             "registered_ratio": round(ratio, 3),
             "mapper": mapper_used,
             "points3d": colmap.read_model(model_dir).num_points3D(),
+            **geometry,
             "masked": masks is not None,
             "excluded_images": len(excluded),
             **{k: round(v, 1) for k, v in timings.items()},
         }
         write_json(out / SFM_FILE, info)
         ctx.events.log(f"{registered} von {num_images} Bildern verortet ({mapper_used})")
+        return info
+
+    def _check_geometry(self, ctx: StageContext, model_dir: Path) -> dict[str, Any]:
+        """Warnt, wenn sich die Kamera kaum bewegt hat, und richtet die Szene waagrecht aus."""
+        settings = ctx.config.sfm
+        colmap = ctx.tools.colmap
+        rotations, centers, points = colmap.model_geometry(model_dir)
+        ratio = baseline_ratio(centers, points)
+        info: dict[str, Any] = {"baseline_ratio": round(ratio, 3), "oriented": False}
+        if ratio < settings.min_baseline_ratio:
+            ctx.warn(
+                "Die Kamera hat sich kaum von der Stelle bewegt (nur gedreht oder geschwenkt). Ohne "
+                "Bewegung fehlt die Tiefe; der Splat wird wahrscheinlich verzerrt oder unbrauchbar.",
+                "Beim Filmen mit der Kamera um das Motiv herumgehen statt sich auf der Stelle zu drehen.",
+            )
+        if settings.orient_scene and rotations:
+            o = orientation(rotations, points)
+            colmap.transform_model(model_dir, o.rotation, o.translation)
+            info["oriented"] = True
+            info["tilt_corrected_deg"] = round(o.tilt_deg, 1)
+            ctx.events.log(f"Szene waagrecht ausgerichtet (lag um {o.tilt_deg:.0f}° schief)")
         return info
 
     def _masks_dir(self, ctx: StageContext) -> Path | None:

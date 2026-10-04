@@ -313,6 +313,19 @@
           "exclusiveMinimum": 0,
           "title": "Weak Pair Inliers",
           "type": "integer"
+        },
+        "orient_scene": {
+          "default": true,
+          "description": "Szene so drehen, dass der Boden waagrecht liegt (oben = −Y)",
+          "title": "Orient Scene",
+          "type": "boolean"
+        },
+        "min_baseline_ratio": {
+          "default": 0.1,
+          "description": "Warnung, wenn sich die Kamera weniger bewegt hat (Anteil am Abstand zur Szene)",
+          "minimum": 0,
+          "title": "Min Baseline Ratio",
+          "type": "number"
         }
       },
       "title": "SfmSettings",
@@ -611,7 +624,9 @@
         "loop_detection_period": 10,
         "min_registered_ratio": 0.6,
         "low_texture_features": 300,
-        "weak_pair_inliers": 30
+        "weak_pair_inliers": 30,
+        "orient_scene": true,
+        "min_baseline_ratio": 0.1
       }
     },
     "train": {

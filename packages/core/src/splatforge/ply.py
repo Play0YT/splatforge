@@ -7,6 +7,7 @@ Opazität als Logit, Skalierung logarithmisch, Farbe als Kugelflächenfunktions-
 
 from __future__ import annotations
 
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -84,6 +85,33 @@ _TYPES = {
     "short": "<i2",
     "ushort": "<u2",
 }
+
+
+def copy_with_comment(source: Path, target: Path, comment: str) -> None:
+    """Kopiert eine PLY-Datei und fügt im Header eine Kommentarzeile ein (falls noch nicht vorhanden).
+
+    Der Datenteil bleibt Byte für Byte gleich, damit auch PLYs mit zusätzlichen Eigenschaften (z. B. von
+    Brush) unverändert bleiben.
+    """
+    tmp = target.with_name(target.name + ".tmp")
+    with source.open("rb") as src, tmp.open("wb") as dst:
+        lines: list[bytes] = []
+        while True:
+            line = src.readline()
+            if not line:
+                raise ValueError(f"{source}: Header unvollständig")
+            lines.append(line)
+            if line.strip() == b"end_header":
+                break
+        wanted = f"comment {comment}".encode("ascii")
+        if all(line.strip() != wanted for line in lines):
+            newline = b"\r\n" if lines[0].endswith(b"\r\n") else b"\n"
+            # Direkt nach der format-Zeile, wie es der PLY-Standard für Kommentare vorsieht
+            index = next((i + 1 for i, line in enumerate(lines) if line.startswith(b"format")), 1)
+            lines.insert(index, wanted + newline)
+        dst.writelines(lines)
+        shutil.copyfileobj(src, dst)
+    tmp.replace(target)
 
 
 def read_ply(path: Path) -> GaussianCloud:

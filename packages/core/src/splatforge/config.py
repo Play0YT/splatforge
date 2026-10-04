@@ -117,6 +117,14 @@ class SfmSettings(_Model):
     weak_pair_inliers: int = Field(
         default=30, gt=0, description="Unter so vielen Inliern zwischen Nachbarbildern: zu wenig Überlappung"
     )
+    orient_scene: bool = Field(
+        default=True, description="Szene so drehen, dass der Boden waagrecht liegt (oben = −Y)"
+    )
+    min_baseline_ratio: float = Field(
+        default=0.1,
+        ge=0,
+        description="Warnung, wenn sich die Kamera weniger bewegt hat (Anteil am Abstand zur Szene)",
+    )
 
 
 class TrainSettings(_Model):

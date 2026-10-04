@@ -1,7 +1,8 @@
 """Stufe 8: Nachbearbeitung und Export.
 
 In Meilenstein 1 nur: Ergebnis prüfen, als ``splat.ply`` ablegen und ``report.json`` schreiben.
-Floater-Entfernung, Bodenausrichtung und ``.spz`` folgen in Meilenstein 7.
+Die Szene ist schon in Stufe 6 waagrecht ausgerichtet; hier wird das in der PLY vermerkt.
+Floater-Entfernung und ``.spz`` folgen in Meilenstein 7.
 """
 
 from __future__ import annotations
@@ -10,12 +11,15 @@ import shutil
 from typing import Any
 
 from .. import __version__
-from ..ply import read_ply
+from ..ply import copy_with_comment, read_ply
 from .base import Stage, StageContext, write_json
+from .sfm import SfmStage
 from .train import FINAL_PLY, TrainStage
 
 SPLAT_FILE = "splat.ply"
 REPORT_FILE = "report.json"
+# Brush versteht "y" als: oben ist −Y
+VERTICAL_AXIS_COMMENT = "vertical axis: y"
 
 
 class ExportStage(Stage):
@@ -30,7 +34,11 @@ class ExportStage(Stage):
         cloud = read_ply(source)
         if len(cloud) == 0:
             raise RuntimeError("Das Training hat einen leeren Splat erzeugt.")
-        shutil.copy2(source, out / SPLAT_FILE)
+        if ctx.job.done_info(SfmStage.dirname).get("oriented"):
+            # Brush liest daraus die Richtung oben (−Y) und schätzt sie dann nicht selbst
+            copy_with_comment(source, out / SPLAT_FILE, VERTICAL_AXIS_COMMENT)
+        else:
+            shutil.copy2(source, out / SPLAT_FILE)
         if ctx.config.export.write_spz:
             ctx.warn("Der .spz-Export folgt in einer späteren Version; es wurde nur .ply geschrieben.")
         ctx.events.log(f"Splat mit {len(cloud)} Gaussians exportiert: {out / SPLAT_FILE}")

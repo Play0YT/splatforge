@@ -11,8 +11,8 @@ Geplant sind zwei eigenständige Anwendungen mit gemeinsamem Verarbeitungskern:
 
 | Teil | Version | Stand |
 | --- | --- | --- |
-| [`packages/core`](packages/core) | 0.3.0 | Kommandozeile: Video → (Personen maskieren) → Kamerapositionen → Splat (`.ply`) |
-| [`packages/job-schema`](packages/job-schema) | 0.2.0 | JSON-Schemas für Job-Konfiguration und Events |
+| [`packages/core`](packages/core) | 0.3.1 | Kommandozeile: Video → (Personen maskieren) → Kamerapositionen → Splat (`.ply`) |
+| [`packages/job-schema`](packages/job-schema) | 0.2.1 | JSON-Schemas für Job-Konfiguration und Events |
 | `packages/ui-components`, `apps/*` | – | noch nicht begonnen |
 
 Insta360-Dateien (`.insv`) werden gelesen und lassen sich als Einzelbilder pro Objektiv exportieren; ein

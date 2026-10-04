@@ -2,6 +2,26 @@
 
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionen nach [SemVer](https://semver.org/lang/de/).
 
+## [0.3.1] – 2026-10-04
+
+### Behoben
+- Splats lagen schief, bei Clips mit wackliger oder sich drehender Kamera teils um rund 45°. COLMAP legt das
+  Koordinatensystem beliebig fest, und Brush schätzt die Richtung „oben“ aus der Kamerabahn, was bei solchen
+  Clips scheitert. Die Szene wird jetzt nach dem Mapping waagrecht ausgerichtet (oben = −Y) und die
+  Szenenmitte in den Ursprung gelegt. „Oben“ kommt aus den Kameraachsen und stimmt auch, wenn die Kamera
+  nach unten zeigt oder wackelt. In `splat.ply` steht `comment vertical axis: y`, damit Brush diese Richtung
+  übernimmt. Abschaltbar mit `sfm.orient_scene: false`.
+
+### Hinzugefügt
+- Warnung, wenn sich die Kamera kaum von der Stelle bewegt hat (nur gedreht oder geschwenkt). Dann fehlt die
+  Tiefe, und der Splat wird unbrauchbar, obwohl COLMAP alle Bilder verortet. Kennzahl `baseline_ratio` in
+  `sfm.json`/`report.json`, Schwelle `sfm.min_baseline_ratio` (Standard 0,1).
+- `sfm.json` enthält `oriented` und `tilt_corrected_deg`.
+
+### Hinweise
+- Keine Migration nötig: Die neuen Einstellungen haben Standardwerte. Bereits fertige Jobs bleiben, wie sie
+  sind; die Ausrichtung gilt für neue Jobs (oder nach Löschen von `06_sfm` und `splatforge resume`).
+
 ## [0.3.0] – 2026-10-02
 
 ### Hinzugefügt

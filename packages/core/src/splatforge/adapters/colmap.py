@@ -166,6 +166,24 @@ class ColmapAdapter:
     def read_model(self, path: Path) -> Any:
         return self.pycolmap.Reconstruction(path)
 
+    def model_geometry(self, path: Path) -> tuple[list[Any], Any, Any]:
+        """Kameradrehungen (Welt → Kamera), Kamerapositionen und 3D-Punkte eines Modells."""
+        import numpy as np
+
+        rec = self.read_model(path)
+        images = [im for im in rec.images.values() if im.has_pose]
+        rotations = [np.asarray(im.cam_from_world().rotation.matrix()) for im in images]
+        centers = np.array([im.projection_center() for im in images], dtype=np.float64).reshape(-1, 3)
+        points = np.array([p.xyz for p in rec.points3D.values()], dtype=np.float64).reshape(-1, 3)
+        return rotations, centers, points
+
+    def transform_model(self, path: Path, rotation: Any, translation: Any) -> None:
+        """Dreht und verschiebt ein Modell an Ort und Stelle: neue Welt = Drehung · alte + Verschiebung."""
+        pc = self.pycolmap
+        rec = self.read_model(path)
+        rec.transform(pc.Sim3d(1.0, pc.Rotation3d(rotation), translation))
+        rec.write(path)
+
     def database_stats(self, database: Path) -> DatabaseStats:
         pc = self.pycolmap
         db = pc.Database.open(database) if hasattr(pc.Database, "open") else pc.Database(database)

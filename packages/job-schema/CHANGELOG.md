@@ -2,6 +2,11 @@
 
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionen nach [SemVer](https://semver.org/lang/de/).
 
+## [0.2.1] – 2026-10-04
+
+### Hinzugefügt
+- Job-Konfiguration: `sfm.orient_scene` und `sfm.min_baseline_ratio`. `schema_version` bleibt 1.
+
 ## [0.2.0] – 2026-10-02
 
 ### Hinzugefügt
