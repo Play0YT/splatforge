@@ -110,7 +110,7 @@ Meilenstein 2 erfüllt).
 
 ## 2026-10-04 – Core 0.4.0, Insta360 X4, Brush (Rückmeldung des Projektinhabers)
 
-Linux-PC des Projektinhabers (Grafikkarte nicht angegeben). Eine Aufnahme der X4 (.insv, zwei HEVC-Spuren mit je 3840×3840,
+Linux-PC (Ubuntu, AMD Radeon RX 6700). Eine Aufnahme der X4 (.insv, zwei HEVC-Spuren mit je 3840×3840,
 29,97 fps, 175 s), einmal als Export aus Insta360 Studio (equirektangulär) und einmal als .insv direkt,
 `--preset preview --backend brush` ohne Maskierung (60 Zeitpunkte × 10 Ansichten = 600 Bilder).
 
