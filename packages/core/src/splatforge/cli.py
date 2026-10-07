@@ -136,7 +136,13 @@ def _load_config(args: argparse.Namespace) -> JobConfig:
 
 def _run_pipeline(job: JobDir, config: JobConfig, as_json: bool) -> int:
     human = not as_json and sys.stdout.isatty()
-    events = EventSink(log_file=job.events_file, stream=sys.stdout, human=human)
+    display = None
+    if human:
+        from .terminal import TerminalDisplay, supports_ansi
+
+        # Fortschrittsbalken unten im Terminal; ohne ANSI-Unterstützung einfache Zeilen
+        display = TerminalDisplay(sys.stdout) if supports_ansi(sys.stdout) else None
+    events = EventSink(log_file=job.events_file, stream=sys.stdout, human=human, display=display)
     cancel = CancelToken()
 
     def on_signal(signum: int, frame: FrameType | None) -> None:

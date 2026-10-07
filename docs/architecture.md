@@ -96,6 +96,10 @@ Ein Event ist ein JSON-Objekt pro Zeile (`events.py`, Schema in `packages/job-sc
 Fehler-Events tragen eine verständliche `message` und einen konkreten `hint`; technische Details stehen
 als `log`-Event davor.
 
+Im Terminal zeigt `terminal.py` die Events lesbar an: Meldungen laufen nach oben weg, unten stehen zwei
+Balken (Stufe und Job) mit vergangener Zeit und Restzeit-Hochrechnung. `EventSink` reicht die Events dafür
+an eine `Display`-Klasse weiter; die JSON-Lines-Datei bleibt unverändert.
+
 ## Externe Programme
 
 Jedes externe Programm hat eine Adapter-Klasse (`adapters/`) mit Suche (Einstellung, sonst `PATH`),

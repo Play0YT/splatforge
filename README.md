@@ -11,7 +11,7 @@ Geplant sind zwei eigenständige Anwendungen mit gemeinsamem Verarbeitungskern:
 
 | Teil | Version | Stand |
 | --- | --- | --- |
-| [`packages/core`](packages/core) | 0.4.1 | Kommandozeile: Video oder 360° → (Personen maskieren) → Kamerapositionen → Splat (`.ply`) |
+| [`packages/core`](packages/core) | 0.4.2 | Kommandozeile: Video oder 360° → (Personen maskieren) → Kamerapositionen → Splat (`.ply`) |
 | [`packages/job-schema`](packages/job-schema) | 0.3.0 | JSON-Schemas für Job-Konfiguration und Events |
 | `packages/ui-components`, `apps/*` | – | noch nicht begonnen |
 
@@ -92,6 +92,10 @@ uv run splatforge run ~/Videos/mein_video.mp4 --preset preview --out ~/splatforg
   7 000 Iterationen bräuchte dort über einen Tag. Für einen ersten Test ohne Grafikkarte also wenig
   Iterationen wählen: `uv run splatforge run <video> --frames 60 --iterations 1000 --out <ordner>`.
   Mit Grafikkarte über Brush (siehe unten) geht es deutlich schneller.
+- Im Terminal stehen unten zwei Fortschrittsbalken: oben die laufende Stufe, darunter der ganze Job, jeweils
+  mit vergangener Zeit und geschätzter Restzeit. Die Restzeit ist eine grobe Hochrechnung aus dem bisherigen
+  Tempo und wird mit der Zeit genauer. Meldungen laufen darüber weg. Mit `--json` (oder wenn die Ausgabe in
+  eine Datei umgeleitet wird) gibt es stattdessen JSON-Zeilen.
 - Mit **Strg+C** brichst du ab. Mit `uv run splatforge resume <ordner>` geht es später dort weiter.
 - Das Ergebnis liegt in `<ordner>/08_export/splat.ply`, ein Bericht in `<ordner>/08_export/report.json`.
   Ansehen kannst du die `.ply`-Datei z. B. per Drag-and-drop im Browser in

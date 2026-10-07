@@ -2,6 +2,20 @@
 
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionen nach [SemVer](https://semver.org/lang/de/).
 
+## [0.4.2] – 2026-10-07
+
+### Hinzugefügt
+- Terminal: zwei Fortschrittsbalken, die immer ganz unten stehen. Oben die laufende Stufe (mit Nummer und
+  aktuellem Schritt), darunter der ganze Job, jeweils mit vergangener Zeit und geschätzter Restzeit. Die
+  Zeit läuft jede Sekunde weiter, auch wenn eine Stufe (z. B. COLMAP) länger keinen Fortschritt meldet.
+  Meldungen erscheinen darüber; Fortschritt erzeugt keine eigenen Zeilen mehr. Beim Fortsetzen zählt für
+  die Restzeit nur dieser Lauf. Unter Windows wird die ANSI-Unterstützung der Konsole eingeschaltet; ohne
+  sie (oder mit `--json`, oder bei Umleitung in eine Datei) bleibt die bisherige Ausgabe.
+
+### Geändert
+- Die Events `stage_started` und `stage_skipped` enthalten jetzt `percent` (Gesamtfortschritt). Das Feld
+  war schon im Schema vorgesehen; ältere Leser sind nicht betroffen.
+
 ## [0.4.1] – 2026-10-04
 
 ### Behoben

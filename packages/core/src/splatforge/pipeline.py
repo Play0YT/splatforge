@@ -99,8 +99,14 @@ class Pipeline:
                 events.stage_weight_done = done_weight / total_weight
                 events.stage_weight = stage.weight / total_weight
                 if stage.is_done(ctx):
-                    events.emit(ProgressEvent(type=EventType.STAGE_SKIPPED, message="bereits erledigt"))
                     done_weight += stage.weight
+                    events.emit(
+                        ProgressEvent(
+                            type=EventType.STAGE_SKIPPED,
+                            message="bereits erledigt",
+                            percent=round(min(done_weight / total_weight, 1.0) * 100, 2),
+                        )
+                    )
                     continue
                 ctx.cancel.raise_if_cancelled()
                 stage.cleanup(ctx)
@@ -110,6 +116,7 @@ class Pipeline:
                         type=EventType.STAGE_STARTED,
                         message=stage.name,
                         eta_seconds=stage.estimate_duration(ctx),
+                        percent=round(min(done_weight / total_weight, 1.0) * 100, 2),
                     )
                 )
                 warnings_before = len(ctx.warnings)

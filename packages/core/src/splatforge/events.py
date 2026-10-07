@@ -11,7 +11,7 @@ import threading
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import TextIO
+from typing import Protocol, TextIO
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -49,13 +49,26 @@ class ProgressEvent(BaseModel):
     data: dict[str, object] | None = None
 
 
-class EventSink:
-    """Schreibt Events als JSON-Lines in eine Datei und optional auf einen Stream."""
+class Display(Protocol):
+    """Anzeige für Menschen (z. B. ``terminal.TerminalDisplay`` mit Fortschrittsbalken)."""
 
-    def __init__(self, log_file: Path | None = None, stream: TextIO | None = None, human: bool = False):
+    def handle(self, event: ProgressEvent) -> None: ...
+
+
+class EventSink:
+    """Schreibt Events als JSON-Lines in eine Datei und optional auf einen Stream oder eine Anzeige."""
+
+    def __init__(
+        self,
+        log_file: Path | None = None,
+        stream: TextIO | None = None,
+        human: bool = False,
+        display: Display | None = None,
+    ):
         self._log_file = log_file
         self._stream = stream
         self._human = human
+        self._display = display
         self._lock = threading.Lock()
         self.stage: str | None = None
         self.stage_index: int | None = None
@@ -73,8 +86,10 @@ class EventSink:
             if self._log_file is not None:
                 with self._log_file.open("a", encoding="utf-8") as fh:
                     fh.write(line + "\n")
-            if self._stream is not None:
-                self._stream.write((_human_line(event) if self._human else line) + "\n")
+            if self._display is not None:
+                self._display.handle(event)
+            elif self._stream is not None:
+                self._stream.write((human_line(event) if self._human else line) + "\n")
                 self._stream.flush()
 
     # Komfortfunktionen für Stufen
@@ -103,7 +118,7 @@ def stderr_sink(log_file: Path | None) -> EventSink:
     return EventSink(log_file=log_file, stream=sys.stderr, human=True)
 
 
-def _human_line(event: ProgressEvent) -> str:
+def human_line(event: ProgressEvent) -> str:
     prefix = f"[{event.stage}]" if event.stage else "[job]"
     if event.type == EventType.PROGRESS:
         eta = f", noch ca. {_fmt_duration(event.eta_seconds)}" if event.eta_seconds is not None else ""
