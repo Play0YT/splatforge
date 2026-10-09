@@ -42,7 +42,16 @@ jobs:
         run: brew install ffmpeg
       - name: FFmpeg installieren (Windows)
         if: runner.os == 'Windows'
-        run: choco install ffmpeg -y --no-progress
+        # Chocolatey meldet bei Serverfehlern (z. B. 504) trotzdem Erfolg: mehrmals versuchen und prüfen
+        run: |
+          for ($i = 1; $i -le 3; $i++) {
+            choco install ffmpeg -y --no-progress
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path", "Machine") + ";" + $env:Path
+            if (Get-Command ffprobe -ErrorAction SilentlyContinue) { break }
+            Start-Sleep -Seconds (20 * $i)
+          }
+          if (-not (Get-Command ffprobe -ErrorAction SilentlyContinue)) { throw "FFmpeg konnte nicht installiert werden" }
+          ffprobe -version | Select-Object -First 1
       - run: uv sync --all-packages --locked
       # Für das CPU-Backend genügt das kleine CPU-Paket von PyTorch (ohne CUDA).
       - run: uv pip install torch --index-url https://download.pytorch.org/whl/cpu

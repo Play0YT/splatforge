@@ -73,6 +73,9 @@ def test_missing_backend_fails_before_any_stage(tmp_path: Path, monkeypatch: pyt
     """Fehlt jedes Trainings-Backend, bricht der Job sofort ab statt erst nach COLMAP."""
     monkeypatch.setattr("splatforge.stages.train.torch_available", lambda: False)
     monkeypatch.setattr("splatforge.adapters.brush.BrushAdapter.available", lambda self: False)
+    # Unabhängig davon, ob FFmpeg installiert ist: Die Prüfung von FFmpeg kommt vor der des Trainings
+    monkeypatch.setattr("splatforge.adapters.ffmpeg.FfprobeAdapter.check", lambda self: (8, 0))
+    monkeypatch.setattr("splatforge.adapters.ffmpeg.FfmpegAdapter.check", lambda self: (8, 0))
     video = tmp_path / "video.mp4"
     video.write_bytes(b"")
     job = tmp_path / "job"
