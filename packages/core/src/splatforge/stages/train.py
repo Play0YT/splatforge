@@ -13,6 +13,7 @@ from typing import Any
 from ..config import TrainBackend
 from ..errors import INSTALL_TORCH_HINT, SplatForgeError, ToolMissingError
 from ..events import EventType, ProgressEvent
+from ..hardware import GPU_GROUP_HINT, gpu_access_problem
 from ._worker import run_worker
 from .base import Stage, StageContext, write_json
 from .sfm import DATASET_DIR, SfmStage
@@ -21,12 +22,36 @@ FINAL_PLY = "final.ply"
 CPU_TASK_FILE = "cpu_task.json"
 # Nur Brushs eigene Fortschrittsmeldungen; alles andere (z. B. die sehr langen Debug-Zeilen von
 # brush_dataset beim Laden jedes Bildes) nur bei Warnungen und Fehlern.
-BRUSH_LOG_FILTER = "warn,brush_cli=info,brush_process=info"
+# cubecl_wgpu=info: meldet, auf welchem Gerät (Grafikkarte oder CPU) Brush rechnet
+BRUSH_LOG_FILTER = "warn,brush_cli=info,brush_process=info,cubecl_wgpu=info"
 # Längere Zeilen werden im Log gekürzt
 MAX_LOG_LINE = 400
 TRAIN_FILE = "train.json"
 _ITER = re.compile(r"iter\s+(\d+)", re.I)
 _EVAL = re.compile(r"PSNR\s+([\d.]+),\s*ssim\s+([\d.]+)", re.I)
+# Zeile von cubecl, z. B. "Using adapter AdapterInfo { name: \"AMD Radeon RX 6700 (RADV NAVI22)\", …,
+# device_type: DiscreteGpu, driver: \"radv\", driver_info: \"Mesa 25.0\", backend: Vulkan }"
+_ADAPTER = re.compile(
+    r'AdapterInfo \{ name: "(?P<name>[^"]*)".*?device_type: (?P<type>\w+)'
+    r'(?:.*?driver: "(?P<driver>[^"]*)")?(?:.*?backend: (?P<backend>\w+))?'
+)
+DEVICE_TYPES = {
+    "DiscreteGpu": "eigene Grafikkarte",
+    "IntegratedGpu": "integrierte Grafik",
+    "VirtualGpu": "virtuelle Grafikkarte",
+    "Cpu": "CPU (Software-Treiber)",
+    "Other": "unbekanntes Gerät",
+}
+
+
+def parse_adapter(line: str) -> dict[str, str] | None:
+    """Gerät aus der Brush-/cubecl-Logzeile, ``None`` wenn die Zeile keins nennt."""
+    m = _ADAPTER.search(line)
+    if m is None:
+        return None
+    return {k: v for k, v in m.groupdict().items() if v is not None}
+
+
 _EXPORT = re.compile(r"export_(\d+)\.ply$")
 
 
@@ -46,6 +71,9 @@ class TrainStage(Stage):
 
     def preflight(self, ctx: StageContext) -> None:
         wanted = ctx.config.train.backend
+        if wanted in (TrainBackend.BRUSH, TrainBackend.AUTO) and (problem := gpu_access_problem()):
+            # Früh melden: sonst fällt erst nach Stunden auf, dass Brush auf der CPU gerechnet hat
+            ctx.warn(problem, GPU_GROUP_HINT)
         if wanted == TrainBackend.BRUSH:
             ctx.tools.brush.check()
         elif wanted == TrainBackend.CPU and not torch_available():
@@ -148,8 +176,14 @@ class TrainStage(Stage):
         exports.mkdir(exist_ok=True)
         started = time.monotonic()
         metrics: dict[str, float] = {}
+        device: dict[str, str] = {}
 
         def on_line(line: str) -> None:
+            if (found := parse_adapter(line)) is not None:
+                if not device:  # cubecl meldet das Gerät zweimal; einmal reicht
+                    device.update(found)
+                    report_device(ctx, found)
+                return
             if (m := _EVAL.search(line)) is not None:
                 metrics["psnr"], metrics["ssim"] = float(m.group(1)), float(m.group(2))
             if (m := _ITER.search(line)) is not None:
@@ -186,8 +220,28 @@ class TrainStage(Stage):
             "iterations": iterations,
             "psnr": metrics.get("psnr"),
             "ssim": metrics.get("ssim"),
+            "device": device or None,
             "seconds": round(time.monotonic() - started, 1),
         }
+
+
+def report_device(ctx: StageContext, device: dict[str, str]) -> None:
+    """Meldet, worauf Brush rechnet, und warnt, wenn es nur der Software-Treiber auf der CPU ist."""
+    kind = DEVICE_TYPES.get(device.get("type", ""), device.get("type", "?"))
+    details = ", ".join(v for v in (kind, device.get("backend"), device.get("driver")) if v)
+    ctx.events.log(f"Brush rechnet auf: {device.get('name', '?')} ({details})")
+    if device.get("type") == "Cpu":
+        problem = gpu_access_problem()
+        ctx.warn(
+            f"Brush rechnet nicht auf der Grafikkarte, sondern mit dem Software-Treiber "
+            f"„{device.get('name', '?')}“ auf der CPU. Das Training ist dadurch sehr langsam."
+            + (f" Ursache: {problem}" if problem else ""),
+            GPU_GROUP_HINT
+            if problem
+            else "Prüfen, ob der Vulkan-Treiber der Grafikkarte installiert ist ('vulkaninfo --summary'). "
+            "Mit der Umgebungsvariable CUBECL_WGPU_DEFAULT_DEVICE=DiscreteGpu(0) lässt sich die eigene "
+            "Grafikkarte erzwingen.",
+        )
 
 
 def brush_args(dataset: Path, exports: Path, iterations: int, ctx: StageContext) -> list[str | Path]:

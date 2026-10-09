@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
 from .adapters import BrushAdapter
@@ -34,6 +35,8 @@ class HardwareInfo:
     brush_problem: str | None = None
     torch: bool = False
     recommended_backend: str = "none"
+    # Linux: Problem beim Zugriff auf die Grafikkarte (/dev/dri), sonst None
+    gpu_access_problem: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -129,6 +132,31 @@ def detect_gpus() -> list[str]:
     return parse_lspci(_command_lines(["lspci"]))
 
 
+GPU_GROUP_HINT = (
+    "Den Benutzer in die Gruppen render und video aufnehmen: 'sudo usermod -aG render,video $USER', danach "
+    "ab- und wieder anmelden (oder neu starten). Mit 'groups' prüfen; 'vulkaninfo --summary' zeigt, welche "
+    "Geräte Vulkan sieht."
+)
+
+
+def gpu_access_problem(dri: Path = Path("/dev/dri")) -> str | None:
+    """Linux: Gibt es Grafikkarten-Geräte, auf die dieser Benutzer nicht zugreifen darf?
+
+    Fehlt der Zugriff auf ``/dev/dri/renderD*``, findet Vulkan die Grafikkarte nicht, und Brush rechnet
+    unbemerkt mit dem Software-Treiber (llvmpipe) auf der CPU.
+    """
+    if not sys.platform.startswith("linux") or not dri.is_dir():
+        return None
+    nodes = sorted(p for p in dri.iterdir() if p.name.startswith("renderD"))
+    blocked = [str(p) for p in nodes if not os.access(p, os.R_OK | os.W_OK)]
+    if not blocked:
+        return None
+    return (
+        f"Kein Zugriff auf {', '.join(blocked)}: Vulkan sieht die Grafikkarte dann nicht, und Brush "
+        "rechnet auf der CPU."
+    )
+
+
 def _nvidia_gpu(gpus: list[str]) -> bool:
     if any("nvidia" in g.lower() for g in gpus):
         return True
@@ -163,4 +191,5 @@ def detect(brush: BrushAdapter | None = None) -> HardwareInfo:
         brush_problem=brush_problem,
         torch=has_torch,
         recommended_backend=recommended,
+        gpu_access_problem=gpu_access_problem(),
     )

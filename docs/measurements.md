@@ -126,3 +126,24 @@ Linux-PC (Ubuntu, AMD Radeon RX 6700). Eine Aufnahme der X4 (.insv, zwei HEVC-Sp
 Der schlechtere .insv-Wert geht auf einen Fehler bei der Umrechnung der X4-Kalibrierung zurück (behoben in
 0.4.1, siehe Changelog). Die langsame Extraktion beim .insv liegt am Dekodieren von zwei 3840er-HEVC-Spuren.
 Nächste Messung: dieselbe .insv-Datei mit 0.4.1.
+
+## 2026-10-08/09 – Core 0.4.2, Insta360 X4 (.insv), Brush (Rückmeldung des Projektinhabers)
+
+Linux-PC (Ubuntu, AMD Radeon RX 6700). .insv direkt (nach der Korrektur der X4-Kalibrierung in 0.4.1),
+`--preset preview --backend brush`, 60 Zeitpunkte × 10 Ansichten (1280 px) = 600 Bilder.
+
+| | ohne Maskierung | mit Maskierung |
+| --- | --- | --- |
+| Extraktion | 80 s | 80 s |
+| Maskierung (600 Ansichten) | – | 372 s (0,6 s pro Ansicht) |
+| Kamerapositionen | 398 s, 600/600 | 390 s, 600/600 |
+| Training (Brush, 7 000 Iterationen) | 221 s | 227 s |
+| Gesamt | 727 s | 1 097 s |
+| PSNR / SSIM (laut Brush) | 16,7 dB / 0,62 | 17,3 dB / 0,64 |
+
+Maskierung: Personen in 160 von 600 Ansichten, in 227 Ansichten zusätzlich über die Ansichtsgrenzen ergänzt.
+Gegenüber 0.4.0 (SSIM 0,48) ist die Struktur deutlich besser getroffen, der PSNR bleibt niedrig.
+`baseline_ratio` ≈ 60: Die Kamera hat einen langen Weg im Verhältnis zur Entfernung der Szene zurückgelegt;
+bei 60 Zeitpunkten liegen zwischen zwei Zeitpunkten mehrere Meter. Vermutlich sind es für diese Aufnahme zu
+wenige Zeitpunkte (Test mit `--frames 150` steht aus). 7 000 Iterationen in 221 s sprechen für Training auf der
+Grafikkarte; die Gerätezeile (ab 0.4.3) soll das bestätigen.

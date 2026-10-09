@@ -33,6 +33,10 @@ if "--help" in args:
 if "{fail}":
     print("Error: No suitable adapter found")
     sys.exit(1)
+adapter = ('AdapterInfo {{ name: "{adapter_name}", vendor: 4098, device: 29663, '
+           'device_type: {adapter_type}, driver: "{driver}", driver_info: "Mesa 25.0.7", backend: Vulkan }}')
+print("[INFO cubecl_wgpu::runtime] Using adapter " + adapter)
+print("[INFO cubecl_wgpu::runtime] Created wgpu compute server on device Device => " + adapter)
 print("INFO brush_dataset::scene load_scene_img; " + "x" * 5000)
 opts = dict(zip(args[1::2], args[2::2]))
 steps = int(opts["{steps_flag}"])
@@ -45,7 +49,11 @@ print("Eval iter {{}}: PSNR 27.5, ssim 0.88".format(steps))
 
 
 def _fake_brush(
-    tmp_path: Path, steps_flag: str = "--total-steps", version: str = "0.3.0", fail: bool = False
+    tmp_path: Path,
+    steps_flag: str = "--total-steps",
+    version: str = "0.3.0",
+    fail: bool = False,
+    adapter: tuple[str, str, str] = ("AMD Radeon RX 6700 (RADV NAVI22)", "DiscreteGpu", "radv"),
 ) -> Path:
     ply = tmp_path / "vorlage.ply"
     n = 5
@@ -69,6 +77,9 @@ def _fake_brush(
             steps_flag=steps_flag,
             fail="1" if fail else "",
             ply=str(ply),
+            adapter_name=adapter[0],
+            adapter_type=adapter[1],
+            driver=adapter[2],
         ),
         encoding="utf-8",
     )
@@ -162,3 +173,69 @@ def test_long_brush_lines_are_shortened(tmp_path: Path) -> None:
     TrainStage().run(ctx)
     assert logged
     assert max(len(line) for line in logged) <= MAX_LOG_LINE + 2
+
+
+def test_parse_adapter() -> None:
+    from splatforge.stages.train import parse_adapter
+
+    line = (
+        '[2026-10-09T05:28:11Z INFO  cubecl_wgpu::runtime] Using adapter AdapterInfo { name: "llvmpipe '
+        '(LLVM 19.1.1, 256 bits)", vendor: 65541, device: 0, device_type: Cpu, driver: "llvmpipe", '
+        'driver_info: "Mesa 25.0.7", backend: Vulkan }'
+    )
+    assert parse_adapter(line) == {
+        "name": "llvmpipe (LLVM 19.1.1, 256 bits)", "type": "Cpu", "driver": "llvmpipe", "backend": "Vulkan"
+    }  # fmt: skip
+    assert parse_adapter("Refine iter 100, 5 splats.") is None
+
+
+@posix_only
+def test_brush_device_is_reported(tmp_path: Path) -> None:
+    ctx = _ctx(tmp_path, _fake_brush(tmp_path))
+    logged: list[str] = []
+    ctx.events.log = logged.append  # type: ignore[method-assign]
+    info = TrainStage().run(ctx)
+    assert info["device"]["type"] == "DiscreteGpu"
+    device_lines = [line for line in logged if "Brush rechnet auf" in line]
+    assert device_lines == [
+        "Brush rechnet auf: AMD Radeon RX 6700 (RADV NAVI22) (eigene Grafikkarte, Vulkan, radv)"
+    ]
+    assert not any("AdapterInfo" in line for line in logged)  # Rohzeilen nicht doppelt im Log
+    assert not ctx.warnings
+
+
+@posix_only
+def test_cpu_fallback_is_warned(tmp_path: Path) -> None:
+    ctx = _ctx(
+        tmp_path, _fake_brush(tmp_path, adapter=("llvmpipe (LLVM 19.1.1, 256 bits)", "Cpu", "llvmpipe"))
+    )
+    TrainStage().run(ctx)
+    assert any("nicht auf der Grafikkarte" in w for w in ctx.warnings)
+
+
+def test_gpu_access_problem(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from splatforge import hardware
+
+    dri = tmp_path / "dri"
+    dri.mkdir()
+    (dri / "card1").touch()
+    (dri / "renderD128").touch()
+    monkeypatch.setattr(hardware.sys, "platform", "linux")
+    monkeypatch.setattr(hardware.os, "access", lambda path, mode: Path(path).name != "renderD128")
+    problem = hardware.gpu_access_problem(dri)
+    assert problem is not None and "renderD128" in problem
+    monkeypatch.setattr(hardware.os, "access", lambda path, mode: True)
+    assert hardware.gpu_access_problem(dri) is None
+    assert hardware.gpu_access_problem(tmp_path / "fehlt") is None
+    monkeypatch.setattr(hardware.sys, "platform", "win32")
+    assert hardware.gpu_access_problem(dri) is None
+
+
+def test_preflight_warns_without_gpu_access(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import splatforge.stages.train as train
+
+    monkeypatch.setattr(train, "gpu_access_problem", lambda: "Kein Zugriff auf /dev/dri/renderD128")
+    monkeypatch.setattr(train, "torch_available", lambda: True)
+    ctx = _ctx(tmp_path, tmp_path / "brush", backend=TrainBackend.AUTO)
+    TrainStage().preflight(ctx)
+    assert ctx.warnings == ["Kein Zugriff auf /dev/dri/renderD128"]

@@ -11,7 +11,7 @@ Geplant sind zwei eigenständige Anwendungen mit gemeinsamem Verarbeitungskern:
 
 | Teil | Version | Stand |
 | --- | --- | --- |
-| [`packages/core`](packages/core) | 0.4.2 | Kommandozeile: Video oder 360° → (Personen maskieren) → Kamerapositionen → Splat (`.ply`) |
+| [`packages/core`](packages/core) | 0.4.3 | Kommandozeile: Video oder 360° → (Personen maskieren) → Kamerapositionen → Splat (`.ply`) |
 | [`packages/job-schema`](packages/job-schema) | 0.3.0 | JSON-Schemas für Job-Konfiguration und Events |
 | `packages/ui-components`, `apps/*` | – | noch nicht begonnen |
 
@@ -185,6 +185,14 @@ heruntergeladen. Unterstützt wird Brush 0.3 oder neuer.
 Ohne `--backend brush` (also mit `auto`) nimmt SplatForge Brush, wenn es gefunden wird, und fällt sonst auf
 die CPU zurück. Liegt Brush im Suchpfad (`PATH`), kann `--brush` entfallen. Hat der Rechner mehrere
 Grafikkarten, nimmt Brush automatisch die leistungsstärkste.
+
+**Rechnet Brush wirklich auf der Grafikkarte?** Beim Start des Trainings steht im Log eine Zeile wie
+`Brush rechnet auf: AMD Radeon RX 6700 (…) (eigene Grafikkarte, Vulkan, radv)`. Steht dort
+`CPU (Software-Treiber)` (z. B. `llvmpipe`), rechnet Brush ohne Grafikkarte und sehr langsam; SplatForge
+warnt dann. Unter Linux ist die häufigste Ursache, dass der Benutzer keinen Zugriff auf die Grafikkarte hat:
+`sudo usermod -aG render,video $USER`, danach ab- und wieder anmelden. `uv run splatforge hardware` zeigt
+unter `gpu_access_problem`, ob der Zugriff fehlt. Mit der Umgebungsvariable
+`CUBECL_WGPU_DEFAULT_DEVICE=DiscreteGpu(0)` lässt sich die eigene Grafikkarte erzwingen.
 
 **Aktualisieren:** im Ordner `splatforge` die Befehle `git pull` und `uv sync --all-packages` ausführen und
 danach den `torch`-Befehl von oben wiederholen (`uv sync` entfernt PyTorch, weil es nicht fest eingetragen ist).

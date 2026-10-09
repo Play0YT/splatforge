@@ -2,6 +2,19 @@
 
 Format nach [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), Versionen nach [SemVer](https://semver.org/lang/de/).
 
+## [0.4.3] – 2026-10-09
+
+### Hinzugefügt
+- SplatForge zeigt an, auf welchem Gerät Brush tatsächlich rechnet (Name, Art, Grafikschnittstelle,
+  Treiber), z. B. `Brush rechnet auf: AMD Radeon RX 6700 (…) (eigene Grafikkarte, Vulkan, radv)`. Die
+  Angabe steht auch in `report.json` unter `stages.train.device`. Dafür liest SplatForge die Info-Meldung
+  von cubecl (der Rechenbibliothek unter Brush) mit.
+- Warnung, wenn Brush nur den Software-Treiber auf der CPU verwendet (z. B. `llvmpipe`), mit Hinweis auf die
+  wahrscheinliche Ursache.
+- Linux: Prüfung, ob der Benutzer auf die Grafikkarte zugreifen darf (`/dev/dri/renderD*`). Fehlt der
+  Zugriff, warnt SplatForge schon vor dem Start (statt erst nach dem Training) und nennt die Abhilfe
+  (Gruppen `render` und `video`). `splatforge hardware` zeigt das unter `gpu_access_problem`.
+
 ## [0.4.2] – 2026-10-07
 
 ### Hinzugefügt
